@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { Zap } from "lucide-react";
-import { categories } from "@/lib/data-static";
+import { cryptoCategories } from "@/lib/data-static";
 
 export function Footer() {
   const year = new Date().getFullYear();
 
-  const col1 = categories.slice(0, 4);
-  const col2 = categories.slice(4);
+  const col1 = cryptoCategories.slice(0, 4);
+  const col2 = cryptoCategories.slice(4);
 
   return (
     <footer className="border-t-2 border-[#0E0E0E] bg-[#0E0E0E] text-[#F7F2E5]">
