@@ -14,12 +14,12 @@ export const metadata: Metadata = {
   title: `Crypto Tools & Airdrops ${CURRENT_YEAR} — Best Crypto Earning Opportunities`,
   description: `Discover the best crypto airdrops, exchanges, DeFi yields, wallets, and trading tools for ${CURRENT_YEAR}. Curated and independently reviewed at EarnInCrypto.`,
   alternates: {
-    canonical: `${BASE_URL}/crypto`,
+    canonical: `${BASE_URL}`,
   },
   openGraph: {
     title: `Crypto Tools & Airdrops ${CURRENT_YEAR} — EarnInCrypto`,
     description: `Best crypto airdrops, exchanges, DeFi yields, wallets, and trading tools. Independently reviewed.`,
-    url: `${BASE_URL}/crypto`,
+    url: `${BASE_URL}`,
   },
 };
 
@@ -34,7 +34,7 @@ export default async function CryptoHomePage() {
     "@type": "CollectionPage",
     name: "Crypto Tools & Airdrops — EarnInCrypto",
     description: `Curated crypto tools, airdrops, and opportunities for ${CURRENT_YEAR}.`,
-    url: `${BASE_URL}/crypto`,
+    url: `${BASE_URL}`,
     // Cross-link relationship
     isPartOf: {
       "@type": "WebSite",
@@ -48,7 +48,7 @@ export default async function CryptoHomePage() {
         "@type": "ListItem",
         position: i + 1,
         name: entry.title,
-        url: `${BASE_URL}/crypto/${entry.category}/${entry.slug}`,
+        url: `${BASE_URL}/${entry.category}/${entry.slug}`,
       })),
     },
   };
@@ -87,14 +87,14 @@ export default async function CryptoHomePage() {
               </p>
               <div className="flex flex-col items-center gap-3 sm:flex-row">
                 <Link
-                  href="/crypto/directory"
+                  href="/directory"
                   className="flex items-center gap-2 border-2 border-[#7C4DFF] bg-[#7C4DFF] px-6 py-3 font-display text-sm font-bold text-white transition-colors hover:bg-[#7C4DFF]/80"
                   style={{ boxShadow: "4px 4px 0 #7C4DFF50" }}
                 >
                   Browse All Tools <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
                 <Link
-                  href="/crypto/airdrops"
+                  href="/airdrops"
                   className="flex items-center gap-2 border border-white/10 bg-white/[0.04] px-6 py-3 text-sm font-medium text-white/60 transition-colors hover:text-white/80"
                 >
                   Latest Airdrops
@@ -134,7 +134,7 @@ export default async function CryptoHomePage() {
               {cryptoCategories.map((cat) => (
                 <Link
                   key={cat.id}
-                  href={`/crypto/${cat.slug}`}
+                  href={`/${cat.slug}`}
                   className="group border border-white/[0.06] bg-white/[0.02] p-5 transition-all hover:border-white/20 hover:bg-white/[0.05]"
                   style={{ borderLeft: `3px solid ${cat.color}` }}
                 >
@@ -161,7 +161,7 @@ export default async function CryptoHomePage() {
               <div className="mb-8 flex items-center justify-between">
                 <h2 className="font-display text-2xl font-black text-white">Featured Tools</h2>
                 <Link
-                  href="/crypto/directory"
+                  href="/directory"
                   className="flex items-center gap-1 text-sm text-white/30 hover:text-[#7C4DFF] transition-colors"
                 >
                   View All <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
