@@ -26,12 +26,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description,
     alternates: {
-      canonical: `${BASE_URL}/crypto/${category}`,
+      canonical: `${BASE_URL}/${category}`,
     },
     openGraph: {
       title,
       description,
-      url: `${BASE_URL}/crypto/${category}`,
+      url: `${BASE_URL}/${category}`,
     },
   };
 }
@@ -52,7 +52,7 @@ export default async function CryptoCategoryPage({ params }: Props) {
     "@type": "CollectionPage",
     name: `${category.name} — SideHustleTools Crypto`,
     description: category.description,
-    url: `${BASE_URL}/crypto/${slug}`,
+    url: `${BASE_URL}/${slug}`,
     mainEntity: {
       "@type": "ItemList",
       numberOfItems: entries.length,
@@ -60,7 +60,7 @@ export default async function CryptoCategoryPage({ params }: Props) {
         "@type": "ListItem",
         position: i + 1,
         name: entry.title,
-        url: `${BASE_URL}/crypto/${entry.category}/${entry.slug}`,
+        url: `${BASE_URL}/${entry.category}/${entry.slug}`,
       })),
     },
   };
@@ -73,7 +73,7 @@ export default async function CryptoCategoryPage({ params }: Props) {
         <section className="border-b border-white/[0.06] py-10">
           <div className="container mx-auto px-4">
             <Link
-              href="/crypto"
+              href="/"
               className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-white/30 hover:text-[#7C4DFF] transition-colors"
             >
               <ArrowLeft className="h-3 w-3" /> Back to Crypto
