@@ -1,12 +1,11 @@
 // app/sitemap.ts
 import type { MetadataRoute } from "next";
 import { getSupabaseServer } from "@/lib/supabase/server";
-import { categories } from "@/lib/data-static";
 import { cryptoCategories } from "@/lib/crypto/data-static";
 
 export const revalidate = 43200; // 12 hours
 
-const BASE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sidehustletools.app";
+const BASE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://earnincrypto.io";
 
 type SitemapEntry = MetadataRoute.Sitemap[number];
 
@@ -14,30 +13,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const sb = getSupabaseServer();
   const urls: SitemapEntry[] = [];
 
-
-  // ── Crypto static pages ─────────────────────────────────────────────
+  // ── Static pages ────────────────────────────────────────────────────
   urls.push(
-    { url: `${BASE}/crypto`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
-    { url: `${BASE}/crypto/directory`, lastModified: new Date(), changeFrequency: "daily", priority: 0.8 },
+    { url: BASE, lastModified: new Date(), changeFrequency: "daily", priority: 1.0 },
+    { url: `${BASE}/crypto`, lastModified: new Date(), changeFrequency: "daily", priority: 0.95 },
+    { url: `${BASE}/crypto/directory`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
   );
 
-  // ── Crypto category pages ───────────────────────────────────────────
+  // ── Category pages ──────────────────────────────────────────────────
   for (const cat of cryptoCategories) {
     urls.push({
       url: `${BASE}/crypto/${cat.slug}`,
       lastModified: new Date(),
       changeFrequency: "daily",
-      priority: 0.8,
+      priority: 0.85,
     });
   }
 
-  // ── Crypto entry pages ──────────────────────────────────────────────
-  const { data: cryptoEntries } = await sb
+  // ── Entry pages ─────────────────────────────────────────────────────
+  const { data: entries } = await sb
     .from("crypto_entries")
     .select("slug, category, updated_at")
     .order("updated_at", { ascending: false });
 
-  for (const entry of cryptoEntries ?? []) {
+  for (const entry of entries ?? []) {
     urls.push({
       url: `${BASE}/crypto/${entry.category}/${entry.slug}`,
       lastModified: new Date(entry.updated_at),
