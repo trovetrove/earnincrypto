@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   title: "All Crypto Tools & Airdrops — Browse & Filter",
   description: "Browse and filter through crypto airdrops, exchanges, DeFi tools, wallets, and more. Every listing independently reviewed.",
   alternates: {
-    canonical: `${BASE_URL}/crypto/directory`,
+    canonical: `${BASE_URL}/directory`,
   },
 };
 
