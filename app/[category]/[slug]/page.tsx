@@ -25,12 +25,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description,
     alternates: {
-      canonical: `${BASE_URL}/crypto/${categorySlug}/${slug}`,
+      canonical: `${BASE_URL}/${categorySlug}/${slug}`,
     },
     openGraph: {
       title,
       description,
-      url: `${BASE_URL}/crypto/${categorySlug}/${slug}`,
+      url: `${BASE_URL}/${categorySlug}/${slug}`,
       type: "article",
       siteName: "SideHustleTools",
     },
