@@ -129,13 +129,12 @@ export function Footer() {
                 { label: "Free Credits",        href: "/free-credits" },
                 { label: "AI & ML",             href: "/ai-ml" },
                 { label: "Compare Tools",       href: "/compare" },
-                { label: "⚡ Crypto Section",    href: "/crypto" },
               ].map(({ label, href }) => (
                 <li key={href}>
                   <Link
                     href={href}
                     className={`group flex items-center gap-1.5 text-[13px] transition-colors ${
-                      href === "/crypto"
+                      href === "/"
                         ? "text-[#7C4DFF]/70 hover:text-[#7C4DFF] font-semibold"
                         : "text-[#F7F2E5]/50 hover:text-[#FF4F2B]"
                     }`}
