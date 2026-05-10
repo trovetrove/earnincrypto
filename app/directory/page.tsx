@@ -4,7 +4,7 @@ import { getAllCryptoEntries } from "@/lib/crypto/queries";
 import { cryptoCategories } from "@/lib/crypto/data-static";
 import { CryptoDirectoryClient } from "./directory-client";
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sidehustletools.app";
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL;
 
 export const metadata: Metadata = {
   title: "All Crypto Tools & Airdrops — Browse & Filter",
