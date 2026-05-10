@@ -16,14 +16,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // ── Static pages ────────────────────────────────────────────────────
   urls.push(
     { url: BASE, lastModified: new Date(), changeFrequency: "daily", priority: 1.0 },
-    { url: `${BASE}/crypto`, lastModified: new Date(), changeFrequency: "daily", priority: 0.95 },
-    { url: `${BASE}/crypto/directory`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
+    { url: `${BASE}`, lastModified: new Date(), changeFrequency: "daily", priority: 0.95 },
+    { url: `${BASE}/directory`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
   );
 
   // ── Category pages ──────────────────────────────────────────────────
   for (const cat of cryptoCategories) {
     urls.push({
-      url: `${BASE}/crypto/${cat.slug}`,
+      url: `${BASE}/${cat.slug}`,
       lastModified: new Date(),
       changeFrequency: "daily",
       priority: 0.85,
@@ -38,7 +38,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   for (const entry of entries ?? []) {
     urls.push({
-      url: `${BASE}/crypto/${entry.category}/${entry.slug}`,
+      url: `${BASE}/${entry.category}/${entry.slug}`,
       lastModified: new Date(entry.updated_at),
       changeFrequency: "weekly",
       priority: 0.75,
