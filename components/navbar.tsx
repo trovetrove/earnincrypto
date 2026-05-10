@@ -29,9 +29,9 @@ export function Navbar() {
           {cryptoCategories.slice(0, 5).map((cat) => (
             <Link
               key={cat.id}
-              href={`/crypto/${cat.slug}`}
+              href={`/${cat.slug}`}
               className={`px-2.5 py-1 text-xs font-medium transition-colors ${
-                pathname.startsWith(`/crypto/${cat.slug}`)
+                pathname.startsWith(`/${cat.slug}`)
                   ? "text-[#7C4DFF]"
                   : "text-white/40 hover:text-[#7C4DFF]"
               }`}
@@ -40,7 +40,7 @@ export function Navbar() {
             </Link>
           ))}
           <Link
-            href="/crypto/directory"
+            href="/directory"
             className="ml-1 border border-[#7C4DFF]/30 bg-[#7C4DFF]/10 px-3 py-1 text-xs font-bold text-[#7C4DFF] hover:bg-[#7C4DFF]/20 transition-colors"
           >
             All Tools
@@ -76,7 +76,7 @@ export function Navbar() {
             {cryptoCategories.map((cat) => (
               <Link
                 key={cat.id}
-                href={`/crypto/${cat.slug}`}
+                href={`/${cat.slug}`}
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-1.5 border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs font-medium text-white/50 hover:text-[#7C4DFF] transition-colors"
               >
@@ -85,7 +85,7 @@ export function Navbar() {
             ))}
           </div>
           <Link
-            href="/crypto/directory"
+            href="/directory"
             onClick={() => setOpen(false)}
             className="mt-2 flex w-full items-center justify-center border border-[#7C4DFF]/30 bg-[#7C4DFF]/10 py-2 text-xs font-bold text-[#7C4DFF]"
           >
