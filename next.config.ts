@@ -20,7 +20,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: https: blob:",
       "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://clerk.sidehustletools.app https://*.supabase.co https://*.vercel-insights.com https://vitals.vercel-insights.com https://pagead2.googlesyndication.com",
+      "connect-src 'self' https://clerk.sidehustletools.app https://*.supabase.co https://*.vercel-insights.com https://vitals.vercel-insights.com https://pagead2.googlesyndication.com https://api-gateway.umami.dev",
       "frame-src https://challenges.cloudflare.com https://clerk.sidehustletools.app https://googleads.g.doubleclick.net",
       "frame-ancestors 'none'",
       "form-action 'self' https://clerk.sidehustletools.app",
@@ -77,6 +77,20 @@ const nextConfig: NextConfig = {
     ],
   },
 
+
+  async rewrites() {
+    return [
+      {
+        source: "/stats/:path*",
+        destination: "https://cloud.umami.is/:path*",
+      },
+      {
+        source: "/admin/:path*",
+        destination: "/not-found",
+      },
+    ];
+  },
+  
   async headers() {
     return [
       {
