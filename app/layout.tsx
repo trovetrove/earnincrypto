@@ -103,6 +103,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
           />
+          <script
+  defer
+  src="/stats/script.js"
+  data-website-id="2529cc11-1e37-46da-941c-492400c20b35"
+/>
         </head>
         <body className="bg-[#0a0a0a] text-white antialiased">
           <div className="flex min-h-screen flex-col">
