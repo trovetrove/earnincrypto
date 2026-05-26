@@ -106,7 +106,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <script
   defer
   src="/stats/script.js"
-  data-website-id="2529cc11-1e37-46da-941c-492400c20b35"
+  data-website-id="686aa394-3a14-409b-aaa4-c8a29cce5c64"
 />
         </head>
         <body className="bg-[#0a0a0a] text-white antialiased">
