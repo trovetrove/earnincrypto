@@ -22,7 +22,7 @@ export function CryptoEntryCard({ entry }: { entry: CryptoEntry }) {
   const risk = RISK_COLORS[entry.riskLevel] ?? RISK_COLORS.medium;
 
   return (
-    <Link href={`/crypto/${entry.category}/${entry.slug}`} className="group block">
+    <Link href={`/${entry.category}/${entry.slug}`} className="group block">
       <div className="relative flex h-full flex-col border border-white/[0.06] bg-white/[0.02] p-5 transition-all hover:border-white/20 hover:bg-white/[0.05]">
         {entry.isFeatured && (
           <div className="absolute -right-1 -top-1 z-10">
