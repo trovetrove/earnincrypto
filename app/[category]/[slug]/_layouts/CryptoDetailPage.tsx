@@ -88,8 +88,8 @@ export async function CryptoDetailPage({ entry, category }: Props) {
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "Home",            item: BASE_URL },
-      { "@type": "ListItem", position: 2, name: category.name,     item: `${BASE_URL}/crypto/${category.slug}` },
-      { "@type": "ListItem", position: 3, name: entry.title,       item: `${BASE_URL}/crypto/${category.slug}/${entry.slug}` },
+      { "@type": "ListItem", position: 2, name: category.name,     item: `${BASE_URL}/${category.slug}` },
+      { "@type": "ListItem", position: 3, name: entry.title,       item: `${BASE_URL}/${category.slug}/${entry.slug}` },
     ],
   };
 
@@ -110,7 +110,7 @@ export async function CryptoDetailPage({ entry, category }: Props) {
             style={{ backgroundImage: "radial-gradient(circle, #7C4DFF 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
 
           <div className="container relative z-10 mx-auto px-4 py-10">
-            <Link href={`/crypto/${category.slug}`}
+            <Link href={`/${category.slug}`}
               className="mb-5 inline-flex items-center gap-1.5 border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-white/40 hover:text-[#7C4DFF] transition-colors">
               <ArrowLeft className="h-3 w-3" /> {category.emoji} {category.name}
             </Link>
