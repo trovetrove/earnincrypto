@@ -52,7 +52,7 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 function getCtaLabel(category: string, hasReferral: boolean): string {
-  if (category === "airdrops")   return hasReferral ? "Claim Airdrop + Bonus"  : "Claim Airdrop";
+  if (category === "airdrops")   return hasReferral ? "Join Airdrop + Bonus"  : "Join Airdrop";
   if (category === "exchanges")  return hasReferral ? "Sign Up + Get Bonus"    : "Visit Exchange";
   if (category === "defi-yield") return hasReferral ? "Start Earning + Bonus"  : "Start Earning";
   if (category === "learn-earn") return hasReferral ? "Start Learning + Bonus" : "Start Learning";
