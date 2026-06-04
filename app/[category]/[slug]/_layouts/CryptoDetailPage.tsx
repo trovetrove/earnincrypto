@@ -1,6 +1,5 @@
 /**
  * app/crypto/[category]/[slug]/_layouts/CryptoDetailPage.tsx
- * Dark-themed detail page with ad slots and cross-link to SideHustleTools.
  */
 
 import Link from "next/link";
@@ -11,8 +10,9 @@ import { RichContent } from "@/components/rich-content";
 import { CryptoEntryCard } from "@/components/crypto/CryptoEntryCard";
 import { AdSlot, SidebarAd, InlineAd, YouMayAlsoLike } from "@/components/ad-slots";
 import {
-  ArrowLeft, ExternalLink, Star, CheckCircle2, XCircle,
-  ChevronDown, Shield, Sparkles, AlertTriangle, Zap, Target,
+  ArrowLeft, ExternalLink, Star, CheckCircle2, XCircle, ChevronDown,
+  Shield, Sparkles, AlertTriangle, Zap, Target, Twitter, Github,
+  MessageCircle, BookOpen, Youtube, Linkedin, Globe,
 } from "lucide-react";
 
 interface Props {
@@ -33,10 +33,17 @@ const PRICE_MAP: Record<string, { label: string; bg: string; color: string }> = 
   "token-required": { label: "Token Required", bg: "#7C4DFF", color: "#fff"    },
 };
 
+const SOCIAL_ICONS: Record<string, React.ElementType> = {
+  twitter: Twitter, github: Github, discord: MessageCircle,
+  telegram: MessageCircle, docs: BookOpen, blog: BookOpen,
+  reddit: Globe, youtube: Youtube, medium: BookOpen,
+  linkedin: Linkedin, website: Globe,
+};
+
 function StarRating({ rating }: { rating: number }) {
   return (
     <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map((i) => (
+      {[1,2,3,4,5].map(i => (
         <Star key={i} className={`h-4 w-4 ${i <= Math.round(rating) ? "fill-[#F5C842] text-[#F5C842]" : "fill-white/10 text-white/10"}`} />
       ))}
       <span className="ml-1.5 font-display text-base font-black text-white">{rating}/5</span>
@@ -45,25 +52,30 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 function getCtaLabel(category: string, hasReferral: boolean): string {
-  if (category === "airdrops")  return hasReferral ? "Claim Airdrop + Bonus" : "Claim Airdrop";
-  if (category === "exchanges") return hasReferral ? "Sign Up + Get Bonus"  : "Visit Exchange";
-  if (category === "defi-yield")return hasReferral ? "Start Earning + Bonus": "Start Earning";
-  if (category === "learn-earn")return hasReferral ? "Start Learning + Bonus": "Start Learning";
+  if (category === "airdrops")   return hasReferral ? "Claim Airdrop + Bonus"  : "Claim Airdrop";
+  if (category === "exchanges")  return hasReferral ? "Sign Up + Get Bonus"    : "Visit Exchange";
+  if (category === "defi-yield") return hasReferral ? "Start Earning + Bonus"  : "Start Earning";
+  if (category === "learn-earn") return hasReferral ? "Start Learning + Bonus" : "Start Learning";
   return hasReferral ? "Get Started + Bonus" : "Get Started";
 }
 
 function getSectionLabels(category: string) {
   switch (category) {
-    case "airdrops":   return { desc: "About This Airdrop", pros: "Why Eligible",  cons: "Requirements & Risks", steps: "How to Claim",       verdict: "Is This Worth It?" };
-    case "exchanges":  return { desc: "Exchange Overview",  pros: "Strengths",      cons: "Weaknesses",           steps: "How to Get Started", verdict: "Our Verdict" };
+    case "airdrops":   return { desc: "About This Airdrop", pros: "Who Qualifies",  cons: "Risks & Requirements", steps: "How to Claim",        verdict: "Is This Worth It?" };
+    case "exchanges":  return { desc: "Exchange Overview",  pros: "Strengths",      cons: "Weaknesses",           steps: "How to Get Started",  verdict: "Our Verdict" };
     case "defi-yield": return { desc: "Protocol Overview",  pros: "Advantages",     cons: "Risks",                steps: "How to Start Earning",verdict: "Realistic Yields" };
-    case "wallets":    return { desc: "Wallet Overview",    pros: "Pros",           cons: "Cons",                 steps: "Setup Guide",        verdict: "Our Take" };
-    case "learn-earn": return { desc: "Program Overview",   pros: "What You Get",   cons: "Limitations",          steps: "How to Earn",        verdict: "Is It Worth Your Time?" };
-    default:           return { desc: `About ${category}`,  pros: "Pros",           cons: "Cons",                 steps: "How to Use",         verdict: "Our Verdict" };
+    case "wallets":    return { desc: "Wallet Overview",    pros: "Pros",           cons: "Cons",                 steps: "Setup Guide",         verdict: "Our Take" };
+    case "learn-earn": return { desc: "Program Overview",   pros: "What You Get",   cons: "Limitations",          steps: "How to Earn",         verdict: "Is It Worth Your Time?" };
+    default:           return { desc: `About ${category}`,  pros: "Pros",           cons: "Cons",                 steps: "How to Use",          verdict: "Our Verdict" };
   }
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://earnincrypto.io";
+
+// ── Small section heading ─────────────────────────────────────────────
+function SectionHeading({ label }: { label: string }) {
+  return <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-widest text-[#7C4DFF]">{label}</h2>;
+}
 
 export async function CryptoDetailPage({ entry, category }: Props) {
   const risk   = RISK_MAP[entry.riskLevel]  ?? RISK_MAP.medium;
@@ -84,12 +96,11 @@ export async function CryptoDetailPage({ entry, category }: Props) {
   } : null;
 
   const breadcrumbJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
+    "@context": "https://schema.org", "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home",            item: BASE_URL },
-      { "@type": "ListItem", position: 2, name: category.name,     item: `${BASE_URL}/${category.slug}` },
-      { "@type": "ListItem", position: 3, name: entry.title,       item: `${BASE_URL}/${category.slug}/${entry.slug}` },
+      { "@type": "ListItem", position: 1, name: "Home",        item: BASE_URL },
+      { "@type": "ListItem", position: 2, name: category.name, item: `${BASE_URL}/${category.slug}` },
+      { "@type": "ListItem", position: 3, name: entry.title,   item: `${BASE_URL}/${category.slug}/${entry.slug}` },
     ],
   };
 
@@ -98,23 +109,20 @@ export async function CryptoDetailPage({ entry, category }: Props) {
       {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      {/* Top ad */}
       <div className="flex justify-center border-b border-white/[0.06] bg-black/20 py-3">
         <AdSlot id="detail-top" format="leaderboard" />
       </div>
 
       <div className="min-h-screen bg-[#0a0a0a]">
-        {/* Hero */}
+        {/* ── Hero ── */}
         <section className="relative overflow-hidden border-b border-white/[0.06]">
           <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
             style={{ backgroundImage: "radial-gradient(circle, #7C4DFF 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
-
           <div className="container relative z-10 mx-auto px-4 py-10">
             <Link href={`/${category.slug}`}
               className="mb-5 inline-flex items-center gap-1.5 border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-white/40 hover:text-[#7C4DFF] transition-colors">
               <ArrowLeft className="h-3 w-3" /> {category.emoji} {category.name}
             </Link>
-
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex-1">
                 <div className="mb-3 flex flex-wrap gap-2">
@@ -125,14 +133,10 @@ export async function CryptoDetailPage({ entry, category }: Props) {
                   {entry.isFeatured && <span className="bg-[#F5C842] px-2 py-0.5 text-[10px] font-bold text-[#0a0a0a]"><Sparkles className="mr-1 inline h-2.5 w-2.5" />Featured</span>}
                   {entry.isVerified && <span className="bg-[#34D163] px-2 py-0.5 text-[10px] font-bold text-[#0a0a0a]"><Shield className="mr-1 inline h-2.5 w-2.5" />Verified</span>}
                 </div>
-
-                <h1 className="mb-3 font-display text-4xl font-black tracking-tight text-white md:text-5xl">
-                  {entry.title}
-                </h1>
+                <h1 className="mb-3 font-display text-4xl font-black tracking-tight text-white md:text-5xl">{entry.title}</h1>
                 <p className="mb-4 max-w-2xl text-lg text-white/50">{entry.shortDescription}</p>
                 <StarRating rating={entry.rating} />
               </div>
-
               {/* CTA card */}
               <div className="shrink-0 lg:w-72">
                 <div className="border border-[#7C4DFF]/30 bg-[#7C4DFF]/5 p-6" style={{ boxShadow: "4px 4px 0 #7C4DFF50" }}>
@@ -161,7 +165,7 @@ export async function CryptoDetailPage({ entry, category }: Props) {
           </div>
         </section>
 
-        {/* Stats strip */}
+        {/* ── Stats strip — static fields + v2 statsBar ── */}
         <section className="border-b border-white/[0.06] bg-white/[0.02]">
           <div className="container mx-auto px-4">
             <div className="flex flex-wrap divide-x divide-white/[0.06]">
@@ -170,8 +174,10 @@ export async function CryptoDetailPage({ entry, category }: Props) {
                 { icon: AlertTriangle, label: "Risk",      val: risk.label },
                 { icon: Star,          label: "Rating",    val: `${entry.rating}/5` },
                 { icon: Zap,           label: "Best For",  val: entry.bestFor || entry.audience[0] || "Everyone" },
-              ].map(({ icon: Icon, label, val }) => (
-                <div key={label} className="flex items-center gap-2 px-5 py-3">
+                // v2 statsBar items
+                ...(entry.statsBar ?? []).map(s => ({ icon: Zap, label: s.label, val: s.value })),
+              ].map(({ icon: Icon, label, val }, i) => (
+                <div key={i} className="flex items-center gap-2 px-5 py-3">
                   <Icon className="h-3.5 w-3.5 shrink-0 text-[#7C4DFF]" />
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wide text-white/20">{label}</p>
@@ -183,7 +189,7 @@ export async function CryptoDetailPage({ entry, category }: Props) {
           </div>
         </section>
 
-        {/* Main content */}
+        {/* ── Main content ── */}
         <section className="py-10">
           <div className="container mx-auto px-4">
             <div className="grid gap-8 lg:grid-cols-3">
@@ -191,19 +197,136 @@ export async function CryptoDetailPage({ entry, category }: Props) {
 
                 {/* Description */}
                 <div className="border border-white/[0.06] bg-white/[0.02] p-6">
-                  <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-widest text-[#7C4DFF]">{labels.desc}</h2>
+                  <SectionHeading label={labels.desc} />
                   <div className="crypto-prose">
                     <RichContent html={entry.description} className="[&_*]:text-white/70 [&_h2]:text-white [&_h3]:text-white/90 [&_strong]:text-white/90 [&_a]:text-[#7C4DFF]" />
                   </div>
                 </div>
 
-                {/* In-content ad */}
                 <InlineAd />
+
+                {/* ── v2: Key Dates ── */}
+                {entry.importantDates?.length > 0 && (
+                  <div className="border border-white/[0.06] bg-white/[0.02] p-6">
+                    <SectionHeading label="📅 Key Dates" />
+                    <div className="space-y-0">
+                      {entry.importantDates.map((d, i) => (
+                        <div key={i} className={`flex items-start gap-4 py-3 ${i < entry.importantDates.length - 1 ? "border-b border-white/[0.06]" : ""}`}>
+                          <div className="w-32 shrink-0">
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#7C4DFF]">{d.label}</p>
+                            <p className="text-sm font-bold text-white">{d.date || "TBA"}</p>
+                          </div>
+                          {d.note && <p className="text-sm text-white/40">{d.note}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── v2: Tasks / Qualification Steps ── */}
+                {entry.tasks?.length > 0 && (
+                  <div className="border border-white/[0.06] bg-white/[0.02] p-6">
+                    <SectionHeading label="✅ Qualification Steps" />
+                    <ol className="space-y-0">
+                      {entry.tasks.map((task, i) => (
+                        <li key={i} className={`flex gap-4 py-3 ${i < entry.tasks.length - 1 ? "border-b border-white/[0.06]" : ""}`}>
+                          <div className="flex h-6 w-6 shrink-0 items-center justify-center bg-[#7C4DFF] text-xs font-black text-white mt-0.5">{i + 1}</div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-sm font-bold text-white">{task.title}</span>
+                              <span className="border border-white/[0.08] px-1.5 py-0 text-[9px] font-bold uppercase text-white/30">{task.type}</span>
+                              {!task.required && <span className="text-[9px] text-white/25 uppercase tracking-wide">optional</span>}
+                              {task.points && <span className="text-[9px] font-bold text-[#7C4DFF]">{task.points} pts</span>}
+                            </div>
+                            {task.description && <p className="text-xs text-white/40">{task.description}</p>}
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
+                {/* ── v2: Reward Breakdown ── */}
+                {entry.rewards?.length > 0 && (
+                  <div className="border border-white/[0.06] bg-white/[0.02] p-6">
+                    <SectionHeading label="🎁 Reward Breakdown" />
+                    <div className="space-y-0">
+                      {/* header row */}
+                      <div className="grid grid-cols-4 gap-2 pb-2 text-[10px] font-bold uppercase tracking-wide text-white/25 border-b border-white/[0.06]">
+                        <span>Tier / Label</span><span>Amount</span><span>≈ USD</span><span>Vesting</span>
+                      </div>
+                      {entry.rewards.map((r, i) => (
+                        <div key={i} className={`grid grid-cols-4 gap-2 py-3 ${i < entry.rewards.length - 1 ? "border-b border-white/[0.06]" : ""}`}>
+                          <span className="text-sm font-bold text-white">{r.label}</span>
+                          <span className="text-sm text-white/70">{r.amount} <span className="text-[#7C4DFF] text-xs font-bold">{r.token}</span></span>
+                          <span className="text-sm text-white/50">{r.usdValue}</span>
+                          <span className="text-xs text-white/40">{r.vesting || "—"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── v2: Fee Schedule ── */}
+                {entry.feeTiers?.length > 0 && (
+                  <div className="border border-white/[0.06] bg-white/[0.02] p-6">
+                    <SectionHeading label="💸 Fee Schedule" />
+                    <div className="space-y-0">
+                      <div className="grid grid-cols-4 gap-2 pb-2 text-[10px] font-bold uppercase tracking-wide text-white/25 border-b border-white/[0.06]">
+                        <span>Tier</span><span>Maker</span><span>Taker</span><span>Requirement</span>
+                      </div>
+                      {entry.feeTiers.map((t, i) => (
+                        <div key={i} className={`grid grid-cols-4 gap-2 py-3 ${i < entry.feeTiers.length - 1 ? "border-b border-white/[0.06]" : ""}`}>
+                          <span className="text-sm font-bold text-white">{t.tier}</span>
+                          <span className="text-sm text-[#34D163] font-bold">{t.makerFee}</span>
+                          <span className="text-sm text-[#F5C842] font-bold">{t.takerFee}</span>
+                          <span className="text-xs text-white/40">{t.requirement}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── v2: Yield Pools ── */}
+                {entry.yieldTiers?.length > 0 && (
+                  <div className="border border-white/[0.06] bg-white/[0.02] p-6">
+                    <SectionHeading label="💰 Yield Pools & APY" />
+                    <div className="space-y-0">
+                      <div className="grid grid-cols-5 gap-2 pb-2 text-[10px] font-bold uppercase tracking-wide text-white/25 border-b border-white/[0.06]">
+                        <span>Asset / Pool</span><span>APY</span><span>TVL</span><span>Lock</span><span>Notes</span>
+                      </div>
+                      {entry.yieldTiers.map((y, i) => (
+                        <div key={i} className={`grid grid-cols-5 gap-2 py-3 ${i < entry.yieldTiers.length - 1 ? "border-b border-white/[0.06]" : ""}`}>
+                          <span className="text-sm font-bold text-white">{y.asset}</span>
+                          <span className="text-sm font-black text-[#34D163]">{y.apy}</span>
+                          <span className="text-xs text-white/50">{y.tvl}</span>
+                          <span className="text-xs text-white/40">{y.lockPeriod || "None"}</span>
+                          <span className="text-xs text-white/30">{y.notes}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── v2: Eligibility Requirements ── */}
+                {entry.requirements?.length > 0 && (
+                  <div className="border border-white/[0.06] bg-white/[0.02] p-6">
+                    <SectionHeading label="🛂 Eligibility Requirements" />
+                    <ul className="space-y-2">
+                      {entry.requirements.map((r, i) => (
+                        <li key={i} className="flex items-start gap-3">
+                          <span className="mt-0.5 shrink-0 border border-white/[0.08] px-1.5 py-0.5 text-[9px] font-bold uppercase text-white/30">{r.type.replace("_", " ")}</span>
+                          <span className="text-sm text-white/60">{r.label}{r.value && <span className="ml-1 font-bold text-white/80">{r.value}</span>}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {/* Verdict */}
                 {entry.realisticValue && (
                   <div className="border border-[#7C4DFF]/20 bg-[#7C4DFF]/5 p-6">
-                    <h2 className="mb-3 font-display text-sm font-bold uppercase tracking-widest text-[#7C4DFF]">{labels.verdict}</h2>
+                    <SectionHeading label={labels.verdict} />
                     <div className="crypto-prose">
                       <RichContent html={entry.realisticValue} className="[&_*]:text-white/70 [&_h2]:text-[#7C4DFF] [&_strong]:text-white/90" />
                     </div>
@@ -247,14 +370,12 @@ export async function CryptoDetailPage({ entry, category }: Props) {
                 {/* Steps */}
                 {entry.howToUse.length > 0 && (
                   <div className="border border-white/[0.06] bg-white/[0.02] p-6">
-                    <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-widest text-[#7C4DFF]">{labels.steps}</h2>
+                    <SectionHeading label={labels.steps} />
                     <ol className="space-y-0">
                       {entry.howToUse.map((step, i) => (
                         <li key={i} className="flex gap-0">
                           <div className="flex w-10 shrink-0 items-start justify-center pt-3">
-                            <span className="flex h-6 w-6 items-center justify-center text-xs font-black" style={{ background: "#7C4DFF", color: "#fff" }}>
-                              {i + 1}
-                            </span>
+                            <span className="flex h-6 w-6 items-center justify-center text-xs font-black" style={{ background: "#7C4DFF", color: "#fff" }}>{i + 1}</span>
                           </div>
                           <div className={`flex-1 py-3 text-sm leading-relaxed text-white/60 ${i < entry.howToUse.length - 1 ? "border-b border-white/[0.06]" : ""}`}>
                             {step}
@@ -262,6 +383,24 @@ export async function CryptoDetailPage({ entry, category }: Props) {
                         </li>
                       ))}
                     </ol>
+                  </div>
+                )}
+
+                {/* ── v2: Social / Community Links ── */}
+                {entry.socialLinks?.length > 0 && (
+                  <div className="border border-white/[0.06] bg-white/[0.02] p-6">
+                    <SectionHeading label="🌐 Official Links & Community" />
+                    <div className="flex flex-wrap gap-2">
+                      {entry.socialLinks.map((s, i) => {
+                        const Icon = SOCIAL_ICONS[s.platform] ?? Globe;
+                        return (
+                          <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-white/50 hover:border-[#7C4DFF]/40 hover:text-[#7C4DFF] transition-colors capitalize">
+                            <Icon className="h-3 w-3" /> {s.platform}
+                          </a>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
@@ -281,56 +420,49 @@ export async function CryptoDetailPage({ entry, category }: Props) {
                   </div>
                 )}
 
-                {/* Related */}
                 {relatedEntries.length > 0 && (
                   <div>
                     <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-widest text-white/40">Similar Tools</h2>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      {relatedEntries.map((alt) => <CryptoEntryCard key={alt.id} entry={alt} />)}
+                      {relatedEntries.map(alt => <CryptoEntryCard key={alt.id} entry={alt} />)}
                     </div>
                   </div>
                 )}
 
-                {/* Global YMAL */}
                 {globalPicks.length > 0 && (
                   <div className="border-t border-white/[0.06] pt-8">
                     <YouMayAlsoLike entries={globalPicks} title="You May Also Like" />
                   </div>
                 )}
 
-                {/* Cross-promo */}
                 <div className="border border-[#F5C842]/20 bg-[#F5C842]/5 p-5">
                   <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-[#F5C842]/60">Also from SHT Network</p>
                   <p className="mb-2 text-sm font-semibold text-white">Want free cloud credits & startup tools?</p>
-                  <a
-                    href="https://sidehustletools.app/free-credits"
-                    target="_blank"
-                    rel="dofollow noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm font-bold text-[#F5C842] hover:text-[#F5C842]/80 transition-colors"
-                  >
+                  <a href="https://sidehustletools.app/free-credits" target="_blank" rel="dofollow noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm font-bold text-[#F5C842] hover:text-[#F5C842]/80 transition-colors">
                     sidehustletools.app/free-credits <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>
 
-                {/* Bottom ad */}
                 <InlineAd />
               </div>
 
-              {/* Sidebar */}
+              {/* ── Sidebar ── */}
               <div className="space-y-5">
                 {/* Quick info */}
                 <div className="border border-white/[0.06] bg-white/[0.02] p-5">
                   <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-white/30">Quick Info</h3>
                   <dl className="space-y-3 text-sm">
                     {[
-                      { k: "Potential",  v: entry.potential },
-                      { k: "Risk Level", v: risk.label },
-                      { k: "Chain",      v: entry.chain },
-                      { k: "Token",      v: entry.token ? `$${entry.token}` : undefined },
-                      { k: "Pricing",    v: price.label },
-                      { k: "Best For",   v: entry.bestFor },
-                      { k: "Audience",   v: entry.audience.join(", ") },
-                      { k: "Free Tier",  v: entry.freeTierDetails },
+                      { k: "Potential",        v: entry.potential },
+                      { k: "Risk Level",       v: risk.label },
+                      { k: "Chain",            v: entry.chain },
+                      { k: "Token",            v: entry.token ? `$${entry.token}` : undefined },
+                      { k: "Pricing",          v: price.label },
+                      { k: "Best For",         v: entry.bestFor },
+                      { k: "Audience",         v: entry.audience.join(", ") },
+                      { k: "Free Tier",        v: entry.freeTierDetails },
+                      { k: "Supported Assets", v: entry.supportedAssets || undefined },
                     ].filter(r => r.v).map(({ k, v }) => (
                       <div key={k} className="flex flex-col gap-0.5 border-b border-white/[0.04] pb-2 last:border-0 last:pb-0">
                         <dt className="text-[10px] font-bold uppercase tracking-wide text-white/20">{k}</dt>
@@ -340,7 +472,7 @@ export async function CryptoDetailPage({ entry, category }: Props) {
                   </dl>
                 </div>
 
-                {/* CTA repeat */}
+                {/* CTA */}
                 <div className="border border-[#7C4DFF]/20 bg-[#7C4DFF]/5 p-5">
                   {entry.potential && <p className="mb-2 font-display text-xl font-black text-[#7C4DFF]">{entry.potential}</p>}
                   <a href={ctaUrl} target="_blank" rel="noopener noreferrer"
@@ -349,10 +481,26 @@ export async function CryptoDetailPage({ entry, category }: Props) {
                   </a>
                 </div>
 
-                {/* Sidebar ad */}
                 <SidebarAd />
 
-                {/* Tags */}
+                {/* v2: Social links in sidebar too */}
+                {entry.socialLinks?.length > 0 && (
+                  <div className="border border-white/[0.06] bg-white/[0.02] p-5">
+                    <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-white/30">Official Links</h3>
+                    <div className="flex flex-col gap-1.5">
+                      {entry.socialLinks.map((s, i) => {
+                        const Icon = SOCIAL_ICONS[s.platform] ?? Globe;
+                        return (
+                          <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-xs text-white/40 hover:text-[#7C4DFF] transition-colors capitalize">
+                            <Icon className="h-3 w-3 shrink-0" /> {s.platform} ↗
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {entry.tags.length > 0 && (
                   <div className="border border-white/[0.06] bg-white/[0.02] p-5">
                     <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-white/30">Tags</h3>
@@ -364,7 +512,6 @@ export async function CryptoDetailPage({ entry, category }: Props) {
                   </div>
                 )}
 
-                {/* Alternatives */}
                 {entry.alternatives.length > 0 && (
                   <div className="border border-white/[0.06] bg-white/[0.02] p-5">
                     <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-white/30">Alternatives</h3>
@@ -376,21 +523,15 @@ export async function CryptoDetailPage({ entry, category }: Props) {
                   </div>
                 )}
 
-                {/* Sister site link */}
                 <div className="border border-white/[0.06] bg-white/[0.02] p-5">
                   <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/20">SHT Network</p>
-                  <a
-                    href="https://sidehustletools.app"
-                    target="_blank"
-                    rel="dofollow noreferrer"
-                    className="block text-sm font-semibold text-[#F5C842] hover:text-[#F5C842]/70 transition-colors"
-                  >
+                  <a href="https://sidehustletools.app" target="_blank" rel="dofollow noreferrer"
+                    className="block text-sm font-semibold text-[#F5C842] hover:text-[#F5C842]/70 transition-colors">
                     SideHustleTools.app ↗
                   </a>
                   <p className="mt-1 text-xs text-white/30">Free cloud credits & startup perks</p>
                 </div>
 
-                {/* Disclaimer */}
                 <div className="border border-white/[0.06] p-4 text-xs text-white/20">
                   <Shield className="mb-1 h-4 w-4" />
                   Crypto involves significant financial risk. Always DYOR. Nothing here constitutes financial advice. Referral links may earn us a commission.
