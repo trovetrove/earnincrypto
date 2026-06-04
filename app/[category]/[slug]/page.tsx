@@ -4,6 +4,9 @@ import { Metadata } from "next";
 import { getCryptoEntryBySlug, getAllCryptoEntries } from "@/lib/crypto/queries";
 import { getCryptoCategoryBySlug } from "@/lib/crypto/data-static";
 import { CryptoDetailPage } from "./_layouts/CryptoDetailPage";
+export const dynamic = "force-dynamic";
+export const dynamicParams = true;
+
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sidehustletools.app";
 const CURRENT_YEAR = new Date().getFullYear();
