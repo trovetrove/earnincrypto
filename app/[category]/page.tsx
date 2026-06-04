@@ -6,6 +6,9 @@ import { getCryptoCategoryBySlug, cryptoCategories } from "@/lib/crypto/data-sta
 import { getCryptoEntriesByCategory } from "@/lib/crypto/queries";
 import { CryptoEntryCard } from "@/components/crypto/CryptoEntryCard";
 import { ArrowLeft } from "lucide-react";
+export const dynamic = "force-dynamic";
+export const dynamicParams = true;
+
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sidehustletools.app";
 const CURRENT_YEAR = new Date().getFullYear();
