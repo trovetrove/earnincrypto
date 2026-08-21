@@ -6,7 +6,10 @@ import Link from "next/link";
 import type { CryptoEntry } from "@/lib/crypto/types";
 import type { CryptoCategory } from "@/lib/crypto/data-static";
 import { getRelatedCryptoEntries, getGlobalRandomCrypto } from "@/lib/crypto/queries";
+import { getGuidesForListing } from "@/lib/blog/queries";
+import { RelatedGuides } from "@/components/blog/RecommendationBlocks";
 import { RichContent } from "@/components/rich-content";
+import { safeJsonLd } from "@/lib/utils";
 import { CryptoEntryCard } from "@/components/crypto/CryptoEntryCard";
 import { AdSlot, SidebarAd, InlineAd, YouMayAlsoLike } from "@/components/ad-slots";
 import {
@@ -86,6 +89,7 @@ export async function CryptoDetailPage({ entry, category }: Props) {
 
   const relatedEntries = await getRelatedCryptoEntries(category.slug, entry.id, 4);
   const globalPicks    = await getGlobalRandomCrypto(entry.id, 6);
+  const relatedGuides  = await getGuidesForListing(entry.slug, 3);
 
   const faqJsonLd = entry.faqItems?.length ? {
     "@context": "https://schema.org", "@type": "FAQPage",
@@ -106,8 +110,8 @@ export async function CryptoDetailPage({ entry, category }: Props) {
 
   return (
     <>
-      {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />}
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(faqJsonLd) }} />}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }} />
 
       <div className="flex justify-center border-b border-white/[0.06] bg-black/20 py-3">
         <AdSlot id="detail-top" format="leaderboard" />
@@ -480,6 +484,8 @@ export async function CryptoDetailPage({ entry, category }: Props) {
                     {ctaLabel} <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 </div>
+
+                <RelatedGuides posts={relatedGuides} />
 
                 <SidebarAd />
 
