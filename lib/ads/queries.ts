@@ -7,7 +7,7 @@
 // Campaigns are managed in the shared manage panel (sidehustletools-main);
 // this app only reads them.
 
-import { getSupabaseServer } from "@/lib/supabase/server";
+import { getSupabaseServerSafe } from "@/lib/supabase/safe";
 import type { CryptoAdRow, AdPlacement } from "@/lib/supabase/types";
 
 export type AdPlacementRecord = {
@@ -56,7 +56,8 @@ export async function getActiveAd(
   placement: AdPlacement,
   category?: string
 ): Promise<AdPlacementRecord | null> {
-  const sb = getSupabaseServer();
+  const sb = getSupabaseServerSafe();
+  if (!sb) return null;
   const nowIso = new Date().toISOString();
 
   const { data, error } = await sb
