@@ -12,7 +12,7 @@
 // Ads are NOT part of this. Paid placement is selected separately in
 // lib/ads/queries.ts so it can never be dressed up as an editorial pick.
 
-import { getSupabaseServer } from "@/lib/supabase/server";
+import { getSupabaseServerSafe } from "@/lib/supabase/safe";
 import type { CryptoEntry } from "@/lib/crypto/types";
 import type { BlogPost } from "@/lib/blog/queries";
 
@@ -132,7 +132,8 @@ function scoreEntry(entry: CryptoEntry, post: BlogPost): number {
 }
 
 async function fetchPool(): Promise<CryptoEntry[]> {
-  const sb = getSupabaseServer();
+  const sb = getSupabaseServerSafe();
+  if (!sb) return [];
   // Bounded pool — enough breadth to rank meaningfully without reading the
   // whole table on every article render.
   const { data, error } = await sb
@@ -150,7 +151,8 @@ async function fetchPool(): Promise<CryptoEntry[]> {
 /** Listings explicitly pinned on the post — an editor's judgement beats the scorer. */
 async function fetchPinned(slugs: string[]): Promise<CryptoEntry[]> {
   if (!slugs.length) return [];
-  const sb = getSupabaseServer();
+  const sb = getSupabaseServerSafe();
+  if (!sb) return [];
   const { data, error } = await sb.from("crypto_entries").select("*").in("slug", slugs);
   if (error || !data) return [];
   const bySlug = new Map((data as any[]).map((r) => [r.slug, mapRow(r)]));
