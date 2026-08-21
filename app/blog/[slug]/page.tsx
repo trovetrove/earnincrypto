@@ -25,9 +25,18 @@ export const revalidate = 600;
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://earnincrypto.io";
 
+export const dynamicParams = true;
+
 export async function generateStaticParams() {
-  const posts = await getPublishedPosts();
-  return posts.map((p) => ({ slug: p.slug }));
+  // Never fail the build on this: if the database is unreachable at build
+  // time, fall back to rendering every article on demand instead.
+  try {
+    const posts = await getPublishedPosts();
+    return posts.map((p) => ({ slug: p.slug }));
+  } catch (err) {
+    console.error("[generateStaticParams] failed, skipping static generation:", err);
+    return [];
+  }
 }
 
 export async function generateMetadata({
