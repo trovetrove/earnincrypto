@@ -40,6 +40,16 @@ export function Navbar() {
             </Link>
           ))}
           <Link
+            href="/blog"
+            className={`ml-1 px-2 py-1 text-xs font-medium transition-colors ${
+              pathname.startsWith("/blog")
+                ? "text-[#7C4DFF]"
+                : "text-white/40 hover:text-[#7C4DFF]"
+            }`}
+          >
+            Blog
+          </Link>
+          <Link
             href="/directory"
             className="ml-1 border border-[#7C4DFF]/30 bg-[#7C4DFF]/10 px-3 py-1 text-xs font-bold text-[#7C4DFF] hover:bg-[#7C4DFF]/20 transition-colors"
           >
@@ -84,6 +94,13 @@ export function Navbar() {
               </Link>
             ))}
           </div>
+          <Link
+            href="/blog"
+            onClick={() => setOpen(false)}
+            className="mt-2 flex w-full items-center justify-center border border-white/[0.08] bg-white/[0.02] py-2 text-xs font-bold text-white/60"
+          >
+            Blog
+          </Link>
           <Link
             href="/directory"
             onClick={() => setOpen(false)}
