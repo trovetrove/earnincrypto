@@ -82,9 +82,92 @@ export type CryptoEntryRow = {
   updated_at: string;
 };
 
+export type PostStatus = "draft" | "published";
+
+export type AdPlacement =
+  | "blog-top"
+  | "blog-middle"
+  | "blog-bottom"
+  | "sidebar"
+  | "category"
+  | "listing";
+
+export type OpportunityStatus = {
+  label: string;
+  token: string;
+  airdrop: string;
+  lastChecked: string;
+};
+
+export type CryptoBlogPostRow = {
+  id: string;
+  title: string;
+  slug: string;
+  subtitle: string | null;
+  content: string | null;
+  cover_image_url: string | null;
+  category: string;
+  tags: string[] | null;
+  chain: string | null;
+  target_keyword: string | null;
+  secondary_keywords: string[] | null;
+  meta_title: string | null;
+  meta_description: string | null;
+  canonical_url: string | null;
+  og_image_url: string | null;
+  related_entry_slugs: string[] | null;
+  related_post_slugs: string[] | null;
+  status: PostStatus;
+  is_featured: boolean;
+  author_name: string | null;
+  faq_items: FaqItem[] | null;
+  opportunity_status: OpportunityStatus | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CryptoAdRow = {
+  id: string;
+  advertiser: string;
+  title: string;
+  description: string | null;
+  image_url: string | null;
+  destination_url: string;
+  category: string | null;
+  placement: AdPlacement;
+  start_date: string | null;
+  end_date: string | null;
+  is_active: boolean;
+  priority: number;
+  sponsored_label: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
+      crypto_blog_posts: {
+        Row: CryptoBlogPostRow;
+        Insert: Omit<CryptoBlogPostRow, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<CryptoBlogPostRow, "id">>;
+        Relationships: any[];
+      };
+      crypto_ads: {
+        Row: CryptoAdRow;
+        Insert: Omit<CryptoAdRow, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<CryptoAdRow, "id">>;
+        Relationships: any[];
+      };
       entries: {
         Row: EntryRow;
         Insert: Omit<EntryRow, "id" | "created_at" | "updated_at" | "logo_url"> & {
@@ -138,6 +221,8 @@ export type Database = {
       effort_level: "low" | "medium" | "high";
       risk_level: "low" | "medium" | "high";
       json_ld_type: "SoftwareApplication" | "Product" | "Service" | "FinancialProduct";
+      post_status: PostStatus;
+      ad_placement: AdPlacement;
     };
   };
 };
