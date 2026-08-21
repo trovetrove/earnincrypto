@@ -13,6 +13,8 @@
 
 import Link from "next/link";
 import type { CryptoEntry } from "@/lib/crypto/types";
+import { getActiveAd } from "@/lib/ads/queries";
+import type { AdPlacement } from "@/lib/supabase/types";
 
 const AD_SIZES: Record<string, { w: string; h: string; label: string }> = {
   leaderboard: { w: "100%",  h: "90px",  label: "728×90 Leaderboard"      },
@@ -81,6 +83,65 @@ export function SidebarAd({ className = "" }: { className?: string }) {
   return (
     <div className={`flex justify-center ${className}`}>
       <AdSlot id="sidebar" format="rectangle" />
+    </div>
+  );
+}
+
+// ── DB-backed sponsored placement ─────────────────────────────────────
+// Renders a sold placement from the `crypto_ads` table, falling back to the
+// static house placeholder when nothing is booked for this slot. Always
+// labelled — a paid placement must never be mistakable for an organic
+// EarnInCrypto recommendation.
+export async function DynamicAdSlot({
+  placement,
+  category,
+  format = "responsive",
+  className = "",
+}: {
+  placement: AdPlacement;
+  category?: string;
+  format?: keyof typeof AD_SIZES;
+  className?: string;
+}) {
+  const ad = await getActiveAd(placement, category);
+
+  if (!ad) {
+    return <AdSlot id={placement} format={format} className={className} />;
+  }
+
+  return (
+    <div className={className}>
+      <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-white/25">
+        {ad.sponsoredLabel}
+      </p>
+      <a
+        href={ad.destinationUrl}
+        target="_blank"
+        rel="sponsored noopener noreferrer"
+        className="group flex items-center gap-4 border border-dashed border-[#7C4DFF]/30 bg-[#7C4DFF]/[0.04] p-4 transition-colors hover:border-[#7C4DFF]/60"
+      >
+        {ad.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={ad.imageUrl}
+            alt=""
+            className="h-12 w-12 shrink-0 border border-white/10 object-contain"
+          />
+        )}
+        <div className="min-w-0">
+          <p className="font-display text-sm font-bold text-white group-hover:underline">
+            {ad.title}
+          </p>
+          {ad.description && (
+            <p className="mt-0.5 text-xs leading-relaxed text-white/45 line-clamp-2">
+              {ad.description}
+            </p>
+          )}
+          <p className="mt-1 text-[10px] uppercase tracking-wide text-white/25">
+            by {ad.advertiser}
+          </p>
+        </div>
+      </a>
     </div>
   );
 }
