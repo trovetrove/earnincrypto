@@ -18,7 +18,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: BASE, lastModified: new Date(), changeFrequency: "daily", priority: 1.0 },
     { url: `${BASE}`, lastModified: new Date(), changeFrequency: "daily", priority: 0.95 },
     { url: `${BASE}/directory`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
+    { url: `${BASE}/blog`, lastModified: new Date(), changeFrequency: "daily", priority: 0.85 },
   );
+
+  // ── Blog posts (published only — drafts must never be submitted) ────
+  const { data: posts } = await sb
+    .from("crypto_blog_posts")
+    .select("slug, updated_at")
+    .eq("status", "published")
+    .order("updated_at", { ascending: false });
+
+  for (const post of posts ?? []) {
+    urls.push({
+      url: `${BASE}/blog/${post.slug}`,
+      lastModified: new Date(post.updated_at),
+      changeFrequency: "weekly",
+      priority: 0.8,
+    });
+  }
 
   // ── Category pages ──────────────────────────────────────────────────
   for (const cat of cryptoCategories) {
