@@ -7,7 +7,7 @@
 // Posts are authored in the shared manage panel (sidehustletools-main);
 // this app only ever reads them.
 
-import { getSupabaseServer } from "@/lib/supabase/server";
+import { getSupabaseServerSafe } from "@/lib/supabase/safe";
 import type {
   CryptoBlogPostRow,
   FaqItem,
@@ -74,7 +74,8 @@ export function mapPostRow(row: CryptoBlogPostRow): BlogPost {
 }
 
 export async function getPublishedPosts(): Promise<BlogPost[]> {
-  const sb = getSupabaseServer();
+  const sb = getSupabaseServerSafe();
+  if (!sb) return [];
   const { data, error } = await sb
     .from("crypto_blog_posts")
     .select("*")
@@ -89,7 +90,8 @@ export async function getPublishedPosts(): Promise<BlogPost[]> {
 
 /** Drafts must 404, never render. */
 export async function getPublishedPostBySlug(slug: string): Promise<BlogPost | null> {
-  const sb = getSupabaseServer();
+  const sb = getSupabaseServerSafe();
+  if (!sb) return null;
   const { data, error } = await sb
     .from("crypto_blog_posts")
     .select("*")
@@ -105,7 +107,8 @@ export async function getPublishedPostBySlug(slug: string): Promise<BlogPost | n
 
 export async function getPostsBySlugs(slugs: string[]): Promise<BlogPost[]> {
   if (!slugs.length) return [];
-  const sb = getSupabaseServer();
+  const sb = getSupabaseServerSafe();
+  if (!sb) return [];
   const { data, error } = await sb
     .from("crypto_blog_posts")
     .select("*")
@@ -119,7 +122,8 @@ export async function getPostsBySlugs(slugs: string[]): Promise<BlogPost[]> {
 }
 
 export async function getRelatedPosts(post: BlogPost, limit = 3): Promise<BlogPost[]> {
-  const sb = getSupabaseServer();
+  const sb = getSupabaseServerSafe();
+  if (!sb) return [];
 
   const pinned = await getPostsBySlugs(post.relatedPostSlugs);
   const picked = pinned.filter((p) => p.id !== post.id).slice(0, limit);
@@ -152,7 +156,8 @@ export async function getGuidesForListing(
   entrySlug: string,
   limit = 3
 ): Promise<BlogPost[]> {
-  const sb = getSupabaseServer();
+  const sb = getSupabaseServerSafe();
+  if (!sb) return [];
   const { data, error } = await sb
     .from("crypto_blog_posts")
     .select("*")
