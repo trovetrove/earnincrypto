@@ -12,6 +12,7 @@ export const metadata = {
     default: `EarnInCrypto — Best Crypto Tools & Airdrops ${CURRENT_YEAR}`,
     template: `%s | EarnInCrypto`,
   },
+  "ory-verify": "orynth-fe73d56d7d7a469a9e6cd19ca8021bf1",
   description:
     `Discover the best crypto airdrops, exchanges, DeFi yields, wallets, and trading tools for ${CURRENT_YEAR}. Independently reviewed and curated.`,
   keywords: [
