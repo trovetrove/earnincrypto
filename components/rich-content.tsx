@@ -2,6 +2,10 @@
  * components/rich-content.tsx
  * Renders HTML stored in the database.
  * Server-side strips inline styles — safety net for old content.
+ *
+ * Authoring happens in the sidehustletools admin, which normalises content to
+ * a fixed tag set (lib/editor/htmlNormalize.ts over there) — this side only
+ * renders. Tables get a scroll wrapper so a wide one stays inside the column.
  */
 
 interface RichContentProps {
@@ -25,6 +29,16 @@ function stripInlineStyles(html: string): string {
     .replace(/\s+class='[^']*'/gi, "");
 }
 
+/**
+ * Added after the class-stripping pass above, which would otherwise remove
+ * the wrapper's own class. Stays balanced even for nested tables.
+ */
+function wrapTables(html: string): string {
+  return html
+    .replace(/<table(\s[^>]*)?>/gi, '<div class="rich-table-scroll"><table$1>')
+    .replace(/<\/table>/gi, "</table></div>");
+}
+
 export function RichContent({ html, className = "" }: RichContentProps) {
   if (!html) return null;
 
@@ -38,7 +52,7 @@ export function RichContent({ html, className = "" }: RichContentProps) {
     );
   }
 
-  const clean = stripInlineStyles(html);
+  const clean = wrapTables(stripInlineStyles(html));
 
   return (
     <div
