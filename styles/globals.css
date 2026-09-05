@@ -139,9 +139,87 @@
 .rich-prose ul li { padding-left: 1.4em; position: relative; margin-bottom: 0.35em; }
 .rich-prose ul li::before { content: "▸"; position: absolute; left: 0; color: #7C4DFF; font-weight: 900; }
 .rich-prose a { color: #7C4DFF; text-decoration: underline; }
+.rich-prose a:not([href]), .crypto-prose a:not([href]) { color: inherit; text-decoration: none; }
 .rich-prose strong, .rich-prose b { color: #fff; font-weight: 700; }
+.rich-prose h4 { font-family: var(--font-display); font-size: 0.95rem; font-weight: 700; color: rgba(255,255,255,0.85); margin: 1em 0 0.3em; }
+/* The blog renders through .rich-prose, so these need to exist here too and
+   not only on .crypto-prose — otherwise a numbered list or a quote in an
+   article falls back to unstyled browser defaults. */
+.rich-prose ol { counter-reset: rich-counter; list-style: none; padding: 0; margin: 0.5em 0 0.9em; }
+.rich-prose ol li { counter-increment: rich-counter; padding-left: 2em; position: relative; margin-bottom: 0.35em; }
+.rich-prose ol li::before { content: counter(rich-counter); position: absolute; left: 0; width: 1.3em; height: 1.3em; background: #7C4DFF; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; color: #fff; top: 0.15em; }
+.rich-prose blockquote { border-left: 3px solid #7C4DFF; padding: 0.5em 1em; margin: 1em 0; color: rgba(255,255,255,0.5); font-style: italic; background: rgba(124,77,255,0.05); }
+.rich-prose hr { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 1.5em 0; }
+.rich-prose s { opacity: 0.55; }
+.rich-prose img { display: block; max-width: 100%; height: auto; margin: 1.2em 0; border: 1px solid rgba(255,255,255,0.08); }
 .rich-prose > *:first-child { margin-top: 0; }
 .rich-prose > *:last-child  { margin-bottom: 0; }
+
+/* ─── TABLES + CODE (shared by both prose scopes) ───────────────────── */
+/* RichContent wraps every <table> in .rich-table-scroll so a wide table
+   scrolls inside the article instead of pushing the page sideways. */
+.rich-prose .rich-table-scroll,
+.crypto-prose .rich-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  margin: 1.3em 0;
+}
+.rich-prose table,
+.crypto-prose table {
+  width: 100%;
+  min-width: 28rem;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0;
+}
+.rich-prose th, .rich-prose td,
+.crypto-prose th, .crypto-prose td {
+  border: 1px solid rgba(255,255,255,0.10);
+  padding: 0.55em 0.8em;
+  text-align: left;
+  vertical-align: top;
+  color: rgba(255,255,255,0.7);
+}
+.rich-prose thead th,
+.crypto-prose thead th {
+  background: rgba(124,77,255,0.18);
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: #fff;
+}
+.rich-prose tbody tr:nth-child(even),
+.crypto-prose tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+.rich-prose td > *:first-child, .crypto-prose td > *:first-child { margin-top: 0; }
+.rich-prose td > *:last-child,  .crypto-prose td > *:last-child  { margin-bottom: 0; }
+
+.rich-prose code, .crypto-prose code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+  background: rgba(255,255,255,0.08);
+  padding: 0.1em 0.35em;
+  border-radius: 2px;
+  color: rgba(255,255,255,0.85);
+}
+.rich-prose pre, .crypto-prose pre {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 1em;
+  margin: 1.3em 0;
+  overflow-x: auto;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgba(255,255,255,0.75);
+}
+.rich-prose pre code, .crypto-prose pre code {
+  background: none;
+  padding: 0;
+  font-size: 1em;
+}
 
 /* ─── ANIMATIONS ────────────────────────────────────────────────────── */
 @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
