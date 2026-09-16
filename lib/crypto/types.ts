@@ -57,6 +57,10 @@ export type CryptoEntry = {
   statsBar: StatItem[];
   socialLinks: SocialLink[];
   supportedAssets: string;
+  // Topic-graph fields, authored in the sidehustletools admin.
+  cluster?: string;
+  revenuePriority?: number;
+  entityAliases?: string[];
   createdAt: string;
   updatedAt: string;
 };
