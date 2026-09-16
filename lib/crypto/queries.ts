@@ -48,6 +48,9 @@ function mapRow(row: any): CryptoEntry {
     statsBar: row.stats_bar ?? [],
     socialLinks: row.social_links ?? [],
     supportedAssets: row.supported_assets ?? "",
+    cluster: row.cluster || undefined,
+    revenuePriority: row.revenue_priority ?? undefined,
+    entityAliases: row.entity_aliases ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
