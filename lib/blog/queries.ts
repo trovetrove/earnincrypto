@@ -8,6 +8,13 @@
 // this app only ever reads them.
 
 import { getSupabaseServerSafe } from "@/lib/supabase/safe";
+import { clusterSetFor } from "@/lib/seo/clusters";
+import {
+  getEntryPoolBySlug,
+  getPostPool,
+  postToGraphPost,
+} from "@/lib/seo/graphData";
+import { rankRelatedPosts } from "@/lib/seo/linkGraph";
 import type {
   CryptoBlogPostRow,
   FaqItem,
@@ -33,6 +40,12 @@ export type BlogPost = {
   ogImageUrl?: string;
   relatedEntrySlugs: string[];
   relatedPostSlugs: string[];
+  // Topic-graph fields. Blank/undefined means "let the engine infer it" —
+  // see lib/seo/clusters.ts.
+  cluster?: string;
+  intentStage?: string;
+  pageType?: string;
+  primaryEntrySlug?: string;
   status: PostStatus;
   isFeatured: boolean;
   authorName: string;
@@ -62,6 +75,10 @@ export function mapPostRow(row: CryptoBlogPostRow): BlogPost {
     ogImageUrl: row.og_image_url ?? undefined,
     relatedEntrySlugs: row.related_entry_slugs ?? [],
     relatedPostSlugs: row.related_post_slugs ?? [],
+    cluster: row.cluster || undefined,
+    intentStage: row.intent_stage || undefined,
+    pageType: row.page_type || undefined,
+    primaryEntrySlug: row.primary_entry_slug || undefined,
     status: row.status,
     isFeatured: row.is_featured,
     authorName: row.author_name ?? "",
@@ -121,29 +138,35 @@ export async function getPostsBySlugs(slugs: string[]): Promise<BlogPost[]> {
   return (data as CryptoBlogPostRow[]).map(mapPostRow);
 }
 
+/**
+ * Sibling posts for the "Related Articles" block.
+ *
+ * Author pins come first, then the topic graph fills the rest — picking on
+ * cluster affinity, chain and *intent progression*, so a guide hands off to a
+ * roundup and a roundup hands off to a head-to-head comparison.
+ *
+ * The previous implementation took the newest posts in the same category, which
+ * amounted to "show whatever was published last".
+ */
 export async function getRelatedPosts(post: BlogPost, limit = 3): Promise<BlogPost[]> {
-  const sb = getSupabaseServerSafe();
-  if (!sb) return [];
-
   const pinned = await getPostsBySlugs(post.relatedPostSlugs);
   const picked = pinned.filter((p) => p.id !== post.id).slice(0, limit);
   if (picked.length >= limit) return picked;
 
-  const { data } = await sb
-    .from("crypto_blog_posts")
-    .select("*")
-    .eq("status", "published")
-    .eq("category", post.category)
-    .neq("id", post.id)
-    .order("published_at", { ascending: false })
-    .limit(limit * 2);
+  const set = clusterSetFor("crypto");
+  const [pool, all] = await Promise.all([getPostPool("crypto"), getPublishedPosts()]);
+  const byId = new Map(all.map((p) => [p.id, p]));
+
+  const ranked = rankRelatedPosts(postToGraphPost(post, "crypto"), pool, set);
 
   const seen = new Set(picked.map((p) => p.id));
-  for (const row of (data as CryptoBlogPostRow[]) ?? []) {
+  for (const { post: candidate } of ranked) {
     if (picked.length >= limit) break;
-    if (seen.has(row.id)) continue;
-    seen.add(row.id);
-    picked.push(mapPostRow(row));
+    if (seen.has(candidate.id)) continue;
+    const full = byId.get(candidate.id);
+    if (!full) continue;
+    seen.add(candidate.id);
+    picked.push(full);
   }
   return picked;
 }
@@ -158,6 +181,7 @@ export async function getGuidesForListing(
 ): Promise<BlogPost[]> {
   const sb = getSupabaseServerSafe();
   if (!sb) return [];
+
   const { data, error } = await sb
     .from("crypto_blog_posts")
     .select("*")
@@ -165,9 +189,50 @@ export async function getGuidesForListing(
     .contains("related_entry_slugs", JSON.stringify([entrySlug]))
     .order("published_at", { ascending: false })
     .limit(limit);
-  if (error) {
-    console.error("[getGuidesForListing]", error.message);
-    return [];
+
+  if (error) console.error("[getGuidesForListing]", error.message);
+
+  const pinned = ((data as CryptoBlogPostRow[]) ?? []).map(mapPostRow);
+  if (pinned.length >= limit) return pinned;
+
+  // Fall back to the topic graph. Pinning is manual and most listings have
+  // never been pinned anywhere, which left their pages with an empty "Related
+  // Guides" block and no path back into the blog — a dead end on exactly the
+  // pages that are supposed to convert.
+  const [pool, entries, all] = await Promise.all([
+    getPostPool("crypto"),
+    getEntryPoolBySlug("crypto"),
+    getPublishedPosts(),
+  ]);
+
+  const entry = entries.get(entrySlug);
+  if (!entry) return pinned;
+
+  const byId = new Map(all.map((p) => [p.id, p]));
+  const seen = new Set(pinned.map((p) => p.id));
+  const names = [entry.title, ...entry.aliases]
+    .map((n) => n.toLowerCase().trim())
+    .filter((n) => n.length >= 3);
+
+  const scored = pool
+    .filter((p) => !seen.has(p.id))
+    .map((p) => {
+      const mentions = names.some(
+        (n) => p.title.toLowerCase().includes(n) || p.text.includes(n)
+      );
+      const sameCluster = p.cluster === entry.cluster;
+      if (!mentions && !sameCluster) return null;
+      return { post: p, score: (mentions ? 100 : 0) + (sameCluster ? 50 : 0) };
+    })
+    .filter((x): x is { post: (typeof pool)[number]; score: number } => x !== null)
+    .sort((a, b) => b.score - a.score);
+
+  const out = [...pinned];
+  for (const { post } of scored) {
+    if (out.length >= limit) break;
+    const full = byId.get(post.id);
+    if (!full) continue;
+    out.push(full);
   }
-  return (data as CryptoBlogPostRow[]).map(mapPostRow);
+  return out;
 }
