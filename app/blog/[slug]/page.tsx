@@ -10,8 +10,16 @@ import {
 import {
   getExploreMoreListings,
   getWhileYoureHereListings,
+  getPrimaryDestination,
+  getEntityLinkIndex,
 } from "@/lib/blog/recommendations";
-import { RichContent } from "@/components/rich-content";
+import { RichContent, prepareArticleHtml } from "@/components/rich-content";
+import { Breadcrumbs } from "@/components/seo/Breadcrumbs";
+import { NextStep } from "@/components/blog/NextStep";
+import { clusterSetFor, resolveCluster } from "@/lib/seo/clusters";
+import { linkBudget } from "@/lib/seo/linkGraph";
+import { toPlainText } from "@/lib/seo/graphData";
+import { linkEntities, selectLinkableEntities } from "@/lib/seo/entityLinker";
 import { ArticleStatusBox } from "@/components/blog/ArticleStatusBox";
 import {
   WhileYoureHere,
@@ -117,16 +125,46 @@ export default async function BlogPostPage({
   const post = await getPublishedPostBySlug(slug);
   if (!post) notFound();
 
+  // Longer reads earn more interstitials and a bigger link budget.
+  const wordCount = post.content.replace(/<[^>]+>/g, " ").split(/\s+/).length;
+  const budget = linkBudget(wordCount);
+
   // whileHere first — its picks are excluded from exploreMore so the same
   // listing never appears twice on one page.
-  const whileHere = await getWhileYoureHereListings(post, 2);
-  const [exploreMore, relatedPosts] = await Promise.all([
+  const whileHere = await getWhileYoureHereListings(post, budget.directory > 3 ? 3 : 2);
+  const [exploreMore, relatedPosts, primaryDestination, allEntities] = await Promise.all([
     getExploreMoreListings(post, 4, whileHere),
-    getRelatedPosts(post, 3),
+    getRelatedPosts(post, budget.relatedArticles),
+    getPrimaryDestination(post),
+    getEntityLinkIndex(post),
   ]);
 
-  const wordCount = post.content.replace(/<[^>]+>/g, " ").split(/\s+/).length;
-  const sections = splitIntoSections(post.content, wordCount > 1200 ? 3 : wordCount > 600 ? 2 : 1);
+  // In-prose entity links are applied to the whole article before it's split,
+  // so each project is linked once across the piece rather than once per
+  // section. Only projects the author already named are eligible.
+  const preparedHtml = prepareArticleHtml(post.content);
+  const linkable = selectLinkableEntities(
+    toPlainText(preparedHtml),
+    allEntities,
+    budget.contextual
+  );
+  const linkedHtml = linkEntities(preparedHtml, linkable, { maxLinks: budget.contextual });
+
+  const sections = splitIntoSections(linkedHtml, wordCount > 1200 ? 3 : wordCount > 600 ? 2 : 1);
+
+  const clusterSet = clusterSetFor("crypto");
+  const clusterId = resolveCluster(
+    post.cluster,
+    {
+      slug: post.slug,
+      category: post.category,
+      tags: post.tags,
+      title: post.title,
+      keywords: [post.targetKeyword, ...post.secondaryKeywords],
+    },
+    clusterSet
+  );
+  const clusterLabel = clusterSet.byId.get(clusterId)?.label;
 
   const articleJsonLd = {
     "@context": "https://schema.org",
@@ -170,6 +208,17 @@ export default async function BlogPostPage({
         {/* ── Header ─────────────────────────────────────────── */}
         <section className="border-b border-white/[0.06]">
           <div className="container mx-auto max-w-4xl px-4 py-10">
+            <Breadcrumbs
+              className="mb-5"
+              siteUrl={SITE}
+              items={[
+                { label: "Home", href: "/" },
+                { label: "Blog", href: "/blog" },
+                ...(clusterLabel ? [{ label: clusterLabel, href: `/blog?cluster=${clusterId}` }] : []),
+                { label: post.title },
+              ]}
+            />
+
             <Link
               href="/blog"
               className="mb-6 inline-flex items-center gap-1.5 border border-white/[0.08] px-3 py-1 text-xs font-bold uppercase tracking-wide text-white/50 transition-colors hover:text-white/80"
@@ -243,6 +292,8 @@ export default async function BlogPostPage({
                     ))}
                   </div>
                 )}
+
+                <NextStep entry={primaryDestination} />
 
                 <ExploreMore entries={exploreMore} />
                 <RelatedArticles posts={relatedPosts} />
