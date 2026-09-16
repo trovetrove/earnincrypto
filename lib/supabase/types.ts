@@ -48,6 +48,9 @@ export type EntryRow = {
 
 export type CryptoEntryRow = {
   id: string;
+  cluster?: string | null;
+  revenue_priority?: number | null;
+  entity_aliases?: string[] | null;
   title: string;
   slug: string;
   category: string;
@@ -116,6 +119,13 @@ export type CryptoBlogPostRow = {
   canonical_url: string | null;
   og_image_url: string | null;
   related_entry_slugs: string[] | null;
+  // Added by the SEO-graph migration in the sidehustletools repo
+  // (scripts/sql/003_seo_graph.sql) — this app only reads them.
+  // Optional so it also type-checks against a pre-migration database.
+  cluster?: string | null;
+  intent_stage?: string | null;
+  page_type?: string | null;
+  primary_entry_slug?: string | null;
   related_post_slugs: string[] | null;
   status: PostStatus;
   is_featured: boolean;
