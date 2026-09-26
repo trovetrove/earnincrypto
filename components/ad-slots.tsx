@@ -1,7 +1,7 @@
 /**
  * components/ad-slots.tsx
  *
- * Ad placeholders + "You May Also Like" for earnincrypto.io
+ * Ad slots for earnincrypto.io.
  *
  * HOW TO ACTIVATE ADSENSE:
  *   1. Add to .env:
@@ -11,8 +11,6 @@
  *   3. Add the AdSense <script> tag to app/layout.tsx <head>.
  */
 
-import Link from "next/link";
-import type { CryptoEntry } from "@/lib/crypto/types";
 import { getActiveAd } from "@/lib/ads/queries";
 import type { AdPlacement } from "@/lib/supabase/types";
 
@@ -30,7 +28,18 @@ interface AdSlotProps {
   className?: string;
 }
 
+/**
+ * Until AdSense is switched on, an ad slot renders nothing. The placeholder
+ * boxes used to ship to production — dashed "Advertisement 728×90" frames in
+ * bordered bands, one of them above every listing's H1 — which pushed the
+ * content down, added layout noise on mobile and earned nothing. With
+ * NEXT_PUBLIC_ADSENSE_ENABLED=true the slot reserves its full size up front so
+ * the ad loading in later can't shift the layout.
+ */
+const ADS_ENABLED = process.env.NEXT_PUBLIC_ADSENSE_ENABLED === "true";
+
 export function AdSlot({ id, format = "responsive", className = "" }: AdSlotProps) {
+  if (!ADS_ENABLED) return null;
   const size = AD_SIZES[format] ?? AD_SIZES.responsive;
 
   return (
@@ -71,7 +80,21 @@ export function AdSlot({ id, format = "responsive", className = "" }: AdSlotProp
    */
 }
 
+/**
+ * Full-width banner band. The band renders only with the ad — an empty
+ * bordered strip used to sit between the navbar and every page's heading.
+ */
+export function BannerAd({ id, className = "" }: { id: string; className?: string }) {
+  if (!ADS_ENABLED) return null;
+  return (
+    <div className={`flex justify-center border-white/[0.06] bg-black/20 py-3 ${className}`}>
+      <AdSlot id={id} format="leaderboard" />
+    </div>
+  );
+}
+
 export function InlineAd({ className = "" }: { className?: string }) {
+  if (!ADS_ENABLED) return null;
   return (
     <div className={`flex justify-center py-1 ${className}`}>
       <AdSlot id="inline" format="responsive" className="w-full" />
@@ -80,6 +103,7 @@ export function InlineAd({ className = "" }: { className?: string }) {
 }
 
 export function SidebarAd({ className = "" }: { className?: string }) {
+  if (!ADS_ENABLED) return null;
   return (
     <div className={`flex justify-center ${className}`}>
       <AdSlot id="sidebar" format="rectangle" />
@@ -89,9 +113,9 @@ export function SidebarAd({ className = "" }: { className?: string }) {
 
 // ── DB-backed sponsored placement ─────────────────────────────────────
 // Renders a sold placement from the `crypto_ads` table, falling back to the
-// static house placeholder when nothing is booked for this slot. Always
-// labelled — a paid placement must never be mistakable for an organic
-// EarnInCrypto recommendation.
+// AdSense slot (nothing at all until AdSense is enabled) when nothing is
+// booked. Always labelled — a paid placement must never be mistakable for an
+// organic EarnInCrypto recommendation.
 export async function DynamicAdSlot({
   placement,
   category,
@@ -111,7 +135,7 @@ export async function DynamicAdSlot({
 
   return (
     <div className={className}>
-      <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-white/25">
+      <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-white/50">
         {ad.sponsoredLabel}
       </p>
       <a
@@ -137,55 +161,11 @@ export async function DynamicAdSlot({
               {ad.description}
             </p>
           )}
-          <p className="mt-1 text-[10px] uppercase tracking-wide text-white/25">
+          <p className="mt-1 text-[10px] uppercase tracking-wide text-white/45">
             by {ad.advertiser}
           </p>
         </div>
       </a>
-    </div>
-  );
-}
-
-// ── "You May Also Like" for crypto entries ────────────────────────────
-interface YouMayAlsoLikeProps {
-  entries: CryptoEntry[];
-  title?: string;
-  className?: string;
-}
-
-export function YouMayAlsoLike({
-  entries,
-  title = "You May Also Like",
-  className = "",
-}: YouMayAlsoLikeProps) {
-  if (!entries.length) return null;
-
-  return (
-    <div className={className}>
-      <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-widest text-white/40">
-        {title}
-      </h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {entries.map((entry) => (
-          <Link
-            key={entry.id}
-            href={`/crypto/${entry.category}/${entry.slug}`}
-            className="group flex flex-col gap-2 border border-white/[0.06] bg-white/[0.02] p-4 transition-all hover:border-white/20 hover:bg-white/[0.05]"
-          >
-            <p className="font-display text-sm font-bold text-white group-hover:text-[#7C4DFF] transition-colors line-clamp-1">
-              {entry.title}
-            </p>
-            <p className="text-xs text-white/40 line-clamp-2 leading-relaxed">
-              {entry.shortDescription}
-            </p>
-            {entry.potential && (
-              <span className="mt-auto inline-block w-fit bg-[#7C4DFF]/20 px-2 py-0.5 text-[10px] font-bold text-[#7C4DFF]">
-                {entry.potential}
-              </span>
-            )}
-          </Link>
-        ))}
-      </div>
     </div>
   );
 }

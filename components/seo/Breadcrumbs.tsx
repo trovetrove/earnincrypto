@@ -14,6 +14,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { safeJsonLd } from "@/lib/utils";
+import { SITE_URL } from "@/lib/seo/metadata";
 
 export type Crumb = {
   label: string;
@@ -23,11 +24,11 @@ export type Crumb = {
 
 export function Breadcrumbs({
   items,
-  siteUrl,
+  siteUrl = SITE_URL,
   className = "",
 }: {
   items: Crumb[];
-  siteUrl: string;
+  siteUrl?: string;
   className?: string;
 }) {
   if (items.length < 2) return null;
@@ -52,19 +53,19 @@ export function Breadcrumbs({
         dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <nav aria-label="Breadcrumb" className={className}>
-        <ol className="flex flex-wrap items-center gap-1 text-xs text-white/35">
+        <ol className="flex flex-wrap items-center gap-1 text-xs text-white/50">
           {items.map((item, i) => (
             <li key={`${item.label}-${i}`} className="flex items-center gap-1">
-              {i > 0 && <ChevronRight className="h-3 w-3 shrink-0 text-white/20" />}
+              {i > 0 && <ChevronRight className="h-3 w-3 shrink-0 text-white/25" aria-hidden="true" />}
               {item.href ? (
                 <Link
                   href={item.href}
-                  className="font-medium transition-colors hover:text-emerald-400"
+                  className="font-medium transition-colors hover:text-[#7C4DFF]"
                 >
                   {item.label}
                 </Link>
               ) : (
-                <span aria-current="page" className="text-white/60">
+                <span aria-current="page" className="line-clamp-1 text-white/70">
                   {item.label}
                 </span>
               )}

@@ -17,7 +17,7 @@ export function Navbar() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center bg-[#7C4DFF]">
-            <Zap className="h-3.5 w-3.5 text-white" />
+            <Zap className="h-3.5 w-3.5 text-white" aria-hidden="true" />
           </div>
           <span className="font-display text-sm font-black tracking-tight text-white">
             EarnIn<span className="text-[#7C4DFF]">Crypto</span>
@@ -32,26 +32,30 @@ export function Navbar() {
               href={`/${cat.slug}`}
               className={`px-2.5 py-1 text-xs font-medium transition-colors ${
                 pathname.startsWith(`/${cat.slug}`)
-                  ? "text-[#7C4DFF]"
-                  : "text-white/40 hover:text-[#7C4DFF]"
+                  ? "text-[#B39DFF]"
+                  : "text-white/60 hover:text-[#B39DFF]"
               }`}
             >
               {cat.emoji} {cat.name}
             </Link>
           ))}
-          <Link
-            href="/blog"
-            className={`ml-1 px-2 py-1 text-xs font-medium transition-colors ${
-              pathname.startsWith("/blog")
-                ? "text-[#7C4DFF]"
-                : "text-white/40 hover:text-[#7C4DFF]"
-            }`}
-          >
-            Blog
-          </Link>
+          {[
+            { href: "/topics", label: "Topics" },
+            { href: "/blog", label: "Blog" },
+          ].map(({ href, label }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`ml-1 px-2 py-1 text-xs font-medium transition-colors ${
+                pathname.startsWith(href) ? "text-[#B39DFF]" : "text-white/60 hover:text-[#B39DFF]"
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
           <Link
             href="/directory"
-            className="ml-1 border border-[#7C4DFF]/30 bg-[#7C4DFF]/10 px-3 py-1 text-xs font-bold text-[#7C4DFF] hover:bg-[#7C4DFF]/20 transition-colors"
+            className="ml-1 border border-[#7C4DFF]/30 bg-[#7C4DFF]/10 px-3 py-1 text-xs font-bold text-[#B39DFF] hover:bg-[#7C4DFF]/20 transition-colors"
           >
             All Tools
           </Link>
@@ -63,8 +67,8 @@ export function Navbar() {
           <a
             href="https://sidehustletools.app"
             target="_blank"
-            rel="dofollow noreferrer"
-            className="hidden text-xs text-white/20 hover:text-white/50 transition-colors sm:block"
+            rel="noopener"
+            className="hidden text-xs text-white/50 hover:text-white/80 transition-colors sm:block"
           >
             SideHustleTools ↗
           </a>
@@ -72,9 +76,11 @@ export function Navbar() {
           {/* Mobile hamburger */}
           <button
             onClick={() => setOpen(!open)}
-            className="flex h-8 w-8 items-center justify-center text-white/50 hover:text-white/80 transition-colors md:hidden"
+            aria-label={open ? "Close menu" : "Open menu"}
+            aria-expanded={open}
+            className="flex h-8 w-8 items-center justify-center text-white/60 hover:text-white/85 transition-colors md:hidden"
           >
-            {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            {open ? <X className="h-4 w-4" aria-hidden="true" /> : <Menu className="h-4 w-4" aria-hidden="true" />}
           </button>
         </div>
       </div>
@@ -88,31 +94,39 @@ export function Navbar() {
                 key={cat.id}
                 href={`/${cat.slug}`}
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-1.5 border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs font-medium text-white/50 hover:text-[#7C4DFF] transition-colors"
+                className="flex items-center gap-1.5 border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs font-medium text-white/65 hover:text-[#B39DFF] transition-colors"
               >
                 {cat.emoji} {cat.name}
               </Link>
             ))}
           </div>
-          <Link
-            href="/blog"
-            onClick={() => setOpen(false)}
-            className="mt-2 flex w-full items-center justify-center border border-white/[0.08] bg-white/[0.02] py-2 text-xs font-bold text-white/60"
-          >
-            Blog
-          </Link>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            {[
+              { href: "/topics", label: "Topics" },
+              { href: "/blog", label: "Blog" },
+            ].map(({ href, label }) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setOpen(false)}
+                className="flex items-center justify-center border border-white/[0.08] bg-white/[0.02] py-2 text-xs font-bold text-white/70"
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
           <Link
             href="/directory"
             onClick={() => setOpen(false)}
-            className="mt-2 flex w-full items-center justify-center border border-[#7C4DFF]/30 bg-[#7C4DFF]/10 py-2 text-xs font-bold text-[#7C4DFF]"
+            className="mt-2 flex w-full items-center justify-center border border-[#7C4DFF]/30 bg-[#7C4DFF]/10 py-2 text-xs font-bold text-[#B39DFF]"
           >
             Browse All Tools
           </Link>
           <a
             href="https://sidehustletools.app"
             target="_blank"
-            rel="dofollow noreferrer"
-            className="mt-2 block text-center text-[11px] text-white/20 hover:text-white/40"
+            rel="noopener"
+            className="mt-2 block text-center text-[11px] text-white/50 hover:text-white/75"
           >
             SideHustleTools.app — free credits & side hustles ↗
           </a>

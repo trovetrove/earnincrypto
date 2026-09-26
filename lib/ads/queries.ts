@@ -7,6 +7,7 @@
 // Campaigns are managed in the shared manage panel (sidehustletools-main);
 // this app only reads them.
 
+import { cache } from "react";
 import { getSupabaseServerSafe } from "@/lib/supabase/safe";
 import type { CryptoAdRow, AdPlacement } from "@/lib/supabase/types";
 
@@ -45,35 +46,43 @@ function mapAdRow(row: CryptoAdRow): AdPlacementRecord {
 }
 
 /**
- * Picks one live ad for a placement.
- *
- * Category-targeted ads outrank untargeted ones, then priority decides.
- * Among everything tied at the top the choice is random per request — ads
- * should rotate far more often than the daily-seeded organic blocks, so
- * several advertisers can share one slot.
+ * Every ad currently inside its serving window, read once per render. An
+ * article page has four slots; they used to issue four identical queries.
  */
-export async function getActiveAd(
-  placement: AdPlacement,
-  category?: string
-): Promise<AdPlacementRecord | null> {
+const getLiveAds = cache(async (): Promise<AdPlacementRecord[]> => {
   const sb = getSupabaseServerSafe();
-  if (!sb) return null;
+  if (!sb) return [];
   const nowIso = new Date().toISOString();
 
   const { data, error } = await sb
     .from("crypto_ads")
     .select("*")
     .eq("is_active", true)
-    .eq("placement", placement)
     .or(`start_date.is.null,start_date.lte.${nowIso}`)
     .or(`end_date.is.null,end_date.gte.${nowIso}`);
 
-  if (error || !data?.length) {
-    if (error) console.error("[getActiveAd]", error.message);
-    return null;
+  if (error || !data) {
+    if (error) console.error("[getLiveAds]", error.message);
+    return [];
   }
+  return (data as CryptoAdRow[]).map(mapAdRow);
+});
 
-  const ads = (data as CryptoAdRow[]).map(mapAdRow);
+/**
+ * Picks one live ad for a placement.
+ *
+ * Category-targeted ads outrank untargeted ones, then priority decides.
+ * Among everything tied at the top the choice is random per render — ads
+ * rotate between revalidations while the organic blocks stay put, so several
+ * advertisers can share one slot.
+ */
+export async function getActiveAd(
+  placement: AdPlacement,
+  category?: string
+): Promise<AdPlacementRecord | null> {
+  const ads = (await getLiveAds()).filter((a) => a.placement === placement);
+  if (!ads.length) return null;
+
   const eligible = category ? ads.filter((a) => !a.category || a.category === category) : ads;
   if (!eligible.length) return null;
 
