@@ -27,8 +27,11 @@ export type PageType =
   | "BLOG_GUIDE"
   | "BLOG_ROUNDUP"
   | "BLOG_COMPARISON"
+  | "BLOG_ALTERNATIVES"
   | "BLOG_LEGIT_CHECK"
   | "BLOG_PAYOUT"
+  /** The one broad article a cluster's other articles roll up to. */
+  | "PILLAR"
   | "DIRECTORY"
   | "PLAYBOOK"
   | "CATEGORY"
@@ -64,13 +67,21 @@ export const INTENT_STAGE_OPTIONS: { value: IntentStage; label: string; hint: st
 ];
 
 export const PAGE_TYPE_OPTIONS: { value: PageType; label: string }[] = [
+  { value: "PILLAR", label: "Pillar (the cluster's main guide)" },
   { value: "BLOG_GUIDE", label: "Guide / How-To" },
   { value: "BLOG_ROUNDUP", label: "Roundup / Best-Of" },
   { value: "BLOG_COMPARISON", label: "Comparison (A vs B)" },
-  { value: "BLOG_LEGIT_CHECK", label: "Legit Check" },
+  { value: "BLOG_ALTERNATIVES", label: "Alternatives to a platform" },
+  { value: "BLOG_LEGIT_CHECK", label: "Review / Legit Check" },
   { value: "BLOG_PAYOUT", label: "Payout / Earnings" },
   { value: "PLAYBOOK", label: "Playbook" },
 ];
+
+/** Page types an editor can set explicitly; anything else is ignored and inferred. */
+export const VALID_PAGE_TYPES = new Set<string>([
+  "BLOG_GUIDE", "BLOG_ROUNDUP", "BLOG_COMPARISON", "BLOG_ALTERNATIVES",
+  "BLOG_LEGIT_CHECK", "BLOG_PAYOUT", "PILLAR", "PLAYBOOK", "HUB",
+]);
 
 /** Blog category → sensible default stage and page type when unset. */
 const CATEGORY_DEFAULTS: Record<string, { stage: IntentStage; pageType: PageType }> = {
@@ -428,6 +439,24 @@ function normalise(s: string): string {
 }
 
 /**
+ * True when `hint` occurs at the start of a word in `text` (both normalised).
+ *
+ * Plain substring matching let short hints fire inside unrelated words:
+ * "gate" (Gate.io) filed "stargate" under exchanges, "dex" matched "index".
+ * Anchoring the start keeps plurals and suffixes working — "airdrop" still
+ * matches "airdrops", "stake" still matches "staked" — without that noise.
+ */
+function startsWord(text: string, hint: string): boolean {
+  if (!hint) return false;
+  let i = text.indexOf(hint);
+  while (i !== -1) {
+    if (i === 0 || text[i - 1] === " ") return true;
+    i = text.indexOf(hint, i + 1);
+  }
+  return false;
+}
+
+/**
  * Below this, the evidence is too thin to trust and the page goes to the
  * fallback cluster instead.
  *
@@ -449,6 +478,21 @@ const MIN_INFERENCE_CONFIDENCE = 25;
  * and would otherwise flatten the whole graph back into one bucket.
  */
 export function inferCluster(input: ClusterInferenceInput, set: ClusterSet): string {
+  return inferClusterDetailed(input, set).cluster;
+}
+
+/**
+ * inferCluster, plus whether the evidence actually cleared the threshold.
+ *
+ * On EarnInCrypto the fallback cluster (airdrops) is a real topic, not a
+ * catch-all, so "landed in the fallback" is ambiguous: an airdrop guide that
+ * matched airdrop hints and a thin post that matched nothing look the same
+ * from the id alone. The content graph only re-homes the second kind.
+ */
+export function inferClusterDetailed(
+  input: ClusterInferenceInput,
+  set: ClusterSet
+): { cluster: string; confident: boolean } {
   const slug = normalise(input.slug ?? "");
   const title = normalise(input.title ?? "");
   const haystack = normalise([...(input.tags ?? []), ...(input.keywords ?? [])].join(" "));
@@ -460,7 +504,7 @@ export function inferCluster(input: ClusterInferenceInput, set: ClusterSet): str
     let score = 0;
 
     for (const hint of c.slugHints) {
-      if (slug.includes(normalise(hint))) {
+      if (startsWord(slug, normalise(hint))) {
         // A long, specific hint ("paid online focus groups") is far stronger
         // evidence than a six-letter one, so weight by hint length.
         score += 40 + Math.min(hint.length, 20);
@@ -470,8 +514,8 @@ export function inferCluster(input: ClusterInferenceInput, set: ClusterSet): str
 
     for (const hint of c.tagHints) {
       const h = normalise(hint);
-      if (haystack.includes(h)) score += 12;
-      else if (title.includes(h)) score += 6;
+      if (startsWord(haystack, h)) score += 12;
+      else if (startsWord(title, h)) score += 6;
     }
 
     // A directory category is decent evidence on its own — enough to clear the
@@ -484,7 +528,9 @@ export function inferCluster(input: ClusterInferenceInput, set: ClusterSet): str
     }
   }
 
-  return bestScore >= MIN_INFERENCE_CONFIDENCE ? best : set.fallback;
+  return bestScore >= MIN_INFERENCE_CONFIDENCE
+    ? { cluster: best, confident: true }
+    : { cluster: set.fallback, confident: false };
 }
 
 /** Explicit label wins; otherwise infer. Unknown labels fall through to inference. */

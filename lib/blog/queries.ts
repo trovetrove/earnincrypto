@@ -1,20 +1,18 @@
 // lib/blog/queries.ts
 //
 // Reads for crypto_blog_posts. Same conventions as lib/crypto/queries.ts:
-// snake_case row → camelCase app type, log and return empty on error so a
-// failed query degrades to an empty section rather than a blank page.
+// snake_case row → camelCase app type. Everything is served from the content
+// graph's single cached read of published posts (lib/seo/graphData.ts), so an
+// article page, its metadata and its related blocks share one query instead
+// of issuing four.
 //
 // Posts are authored in the shared manage panel (sidehustletools-main);
 // this app only ever reads them.
 
-import { getSupabaseServerSafe } from "@/lib/supabase/safe";
-import { clusterSetFor } from "@/lib/seo/clusters";
-import {
-  getEntryPoolBySlug,
-  getPostPool,
-  postToGraphPost,
-} from "@/lib/seo/graphData";
-import { rankRelatedPosts } from "@/lib/seo/linkGraph";
+import { cache } from "react";
+import { getRawPublishedPostRows } from "@/lib/seo/graphData";
+import { getContentGraph, pageTypeLabel } from "@/lib/seo/contentGraph";
+import type { GuideReason } from "@/lib/seo/linkGraph";
 import type {
   CryptoBlogPostRow,
   FaqItem,
@@ -90,149 +88,51 @@ export function mapPostRow(row: CryptoBlogPostRow): BlogPost {
   };
 }
 
+/** All published posts, newest first. Drafts never reach this read. */
 export async function getPublishedPosts(): Promise<BlogPost[]> {
-  const sb = getSupabaseServerSafe();
-  if (!sb) return [];
-  const { data, error } = await sb
-    .from("crypto_blog_posts")
-    .select("*")
-    .eq("status", "published")
-    .order("published_at", { ascending: false });
-  if (error) {
-    console.error("[getPublishedPosts]", error.message);
-    return [];
-  }
-  return (data as CryptoBlogPostRow[]).map(mapPostRow);
+  const rows = await getRawPublishedPostRows("crypto");
+  return rows.map((r) => mapPostRow(r as unknown as CryptoBlogPostRow));
 }
 
-/** Drafts must 404, never render. */
-export async function getPublishedPostBySlug(slug: string): Promise<BlogPost | null> {
-  const sb = getSupabaseServerSafe();
-  if (!sb) return null;
-  const { data, error } = await sb
-    .from("crypto_blog_posts")
-    .select("*")
-    .eq("slug", slug)
-    .eq("status", "published")
-    .single();
-  if (error) {
-    if (error.code !== "PGRST116") console.error("[getPublishedPostBySlug]", error.message);
-    return null;
-  }
-  return mapPostRow(data as CryptoBlogPostRow);
-}
-
-export async function getPostsBySlugs(slugs: string[]): Promise<BlogPost[]> {
-  if (!slugs.length) return [];
-  const sb = getSupabaseServerSafe();
-  if (!sb) return [];
-  const { data, error } = await sb
-    .from("crypto_blog_posts")
-    .select("*")
-    .in("slug", slugs)
-    .eq("status", "published");
-  if (error) {
-    console.error("[getPostsBySlugs]", error.message);
-    return [];
-  }
-  return (data as CryptoBlogPostRow[]).map(mapPostRow);
-}
+/** Public detail page — drafts must 404, never render. */
+export const getPublishedPostBySlug = cache(async (slug: string): Promise<BlogPost | null> => {
+  const rows = await getRawPublishedPostRows("crypto");
+  const row = rows.find((r) => r.slug === slug);
+  return row ? mapPostRow(row as unknown as CryptoBlogPostRow) : null;
+});
 
 /**
- * Sibling posts for the "Related Articles" block.
- *
- * Author pins come first, then the topic graph fills the rest — picking on
- * cluster affinity, chain and *intent progression*, so a guide hands off to a
- * roundup and a roundup hands off to a head-to-head comparison.
- *
- * The previous implementation took the newest posts in the same category, which
- * amounted to "show whatever was published last".
+ * Sibling posts for the "Related Guides" block — straight from the content
+ * graph, which picks every article's related set at once (author pins first,
+ * then cluster, shared projects, chain and funnel progression) and then
+ * repairs the graph so no relevant article is left without inbound links.
+ * See lib/seo/contentGraph.ts.
  */
 export async function getRelatedPosts(post: BlogPost, limit = 3): Promise<BlogPost[]> {
-  const pinned = await getPostsBySlugs(post.relatedPostSlugs);
-  const picked = pinned.filter((p) => p.id !== post.id).slice(0, limit);
-  if (picked.length >= limit) return picked;
-
-  const set = clusterSetFor("crypto");
-  const [pool, all] = await Promise.all([getPostPool("crypto"), getPublishedPosts()]);
-  const byId = new Map(all.map((p) => [p.id, p]));
-
-  const ranked = rankRelatedPosts(postToGraphPost(post, "crypto"), pool, set);
-
-  const seen = new Set(picked.map((p) => p.id));
-  for (const { post: candidate } of ranked) {
-    if (picked.length >= limit) break;
-    if (seen.has(candidate.id)) continue;
-    const full = byId.get(candidate.id);
-    if (!full) continue;
-    seen.add(candidate.id);
-    picked.push(full);
-  }
-  return picked;
+  const graph = await getContentGraph("crypto");
+  const links = graph.relatedPosts.get(post.id) ?? [];
+  return links
+    .slice(0, limit)
+    .map((l) => graph.rawPostById.get(l.post.id))
+    .filter(Boolean)
+    .map((r) => mapPostRow(r as unknown as CryptoBlogPostRow));
 }
 
+export type EntryGuide = { post: BlogPost; label: string; reason: GuideReason };
+
 /**
- * Articles that point at a given directory listing — powers the
- * "Related Guides" block on listing pages, closing the blog ↔ directory loop.
+ * Articles for a directory listing page — its review, its alternatives, the
+ * comparisons it appears in, then its cluster's pillar and siblings. Closes the
+ * blog ↔ directory loop on every listing, not just the ones an editor happened
+ * to pin somewhere.
  */
-export async function getGuidesForListing(
-  entrySlug: string,
-  limit = 3
-): Promise<BlogPost[]> {
-  const sb = getSupabaseServerSafe();
-  if (!sb) return [];
-
-  const { data, error } = await sb
-    .from("crypto_blog_posts")
-    .select("*")
-    .eq("status", "published")
-    .contains("related_entry_slugs", JSON.stringify([entrySlug]))
-    .order("published_at", { ascending: false })
-    .limit(limit);
-
-  if (error) console.error("[getGuidesForListing]", error.message);
-
-  const pinned = ((data as CryptoBlogPostRow[]) ?? []).map(mapPostRow);
-  if (pinned.length >= limit) return pinned;
-
-  // Fall back to the topic graph. Pinning is manual and most listings have
-  // never been pinned anywhere, which left their pages with an empty "Related
-  // Guides" block and no path back into the blog — a dead end on exactly the
-  // pages that are supposed to convert.
-  const [pool, entries, all] = await Promise.all([
-    getPostPool("crypto"),
-    getEntryPoolBySlug("crypto"),
-    getPublishedPosts(),
-  ]);
-
-  const entry = entries.get(entrySlug);
-  if (!entry) return pinned;
-
-  const byId = new Map(all.map((p) => [p.id, p]));
-  const seen = new Set(pinned.map((p) => p.id));
-  const names = [entry.title, ...entry.aliases]
-    .map((n) => n.toLowerCase().trim())
-    .filter((n) => n.length >= 3);
-
-  const scored = pool
-    .filter((p) => !seen.has(p.id))
-    .map((p) => {
-      const mentions = names.some(
-        (n) => p.title.toLowerCase().includes(n) || p.text.includes(n)
-      );
-      const sameCluster = p.cluster === entry.cluster;
-      if (!mentions && !sameCluster) return null;
-      return { post: p, score: (mentions ? 100 : 0) + (sameCluster ? 50 : 0) };
-    })
-    .filter((x): x is { post: (typeof pool)[number]; score: number } => x !== null)
-    .sort((a, b) => b.score - a.score);
-
-  const out = [...pinned];
-  for (const { post } of scored) {
-    if (out.length >= limit) break;
-    const full = byId.get(post.id);
-    if (!full) continue;
-    out.push(full);
-  }
-  return out;
+export async function getGuidesForEntry(entrySlug: string, limit = 4): Promise<EntryGuide[]> {
+  const graph = await getContentGraph("crypto");
+  const links = graph.guidesByEntry.get(entrySlug) ?? [];
+  return links.slice(0, limit).flatMap((l) => {
+    const row = graph.rawPostById.get(l.post.id);
+    if (!row) return [];
+    const label = l.reason === "pillar" ? "Start here" : pageTypeLabel(l.post.pageType);
+    return [{ post: mapPostRow(row as unknown as CryptoBlogPostRow), label, reason: l.reason }];
+  });
 }

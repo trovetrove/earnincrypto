@@ -1,6 +1,6 @@
 // app/opengraph-image.tsx
 import { ImageResponse } from "next/og";
-import { getCryptoStats } from "@/lib/crypto/queries";
+import { getCryptoCountsDirect } from "@/lib/crypto/queries";
 
 export const runtime = "edge";
 export const revalidate = 86400;
@@ -8,7 +8,9 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 export default async function Image() {
-  const stats = await getCryptoStats();
+  // Two head-only count queries: this renders outside the page tree, so it
+  // can't share the page's cached read of the whole table.
+  const stats = await getCryptoCountsDirect().catch(() => ({ totalTools: 0, airdropCount: 0 }));
   const year = new Date().getFullYear();
 
   return new ImageResponse(
@@ -49,23 +51,24 @@ export default async function Image() {
 
         {/* Headline */}
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <h1 style={{ margin: 0, fontSize: "68px", fontWeight: 900, color: "#fff", lineHeight: 1.05, letterSpacing: "-0.03em" }}>
-            Crypto Tools<br />
+          {/* Satori needs display:flex on any element with more than one child. */}
+          <h1 style={{ margin: 0, fontSize: "68px", fontWeight: 900, color: "#fff", lineHeight: 1.05, letterSpacing: "-0.03em", display: "flex", flexDirection: "column" }}>
+            <span>Crypto Tools</span>
             <span style={{ color: "#7C4DFF" }}>& Airdrops</span>
           </h1>
           <p style={{ margin: 0, fontSize: "24px", color: "rgba(255,255,255,0.5)" }}>
-            {stats.totalTools}+ curated opportunities — independently reviewed · {year}
+            {`Independent research on airdrops, exchanges & DeFi yield · ${year}`}
           </p>
         </div>
 
         {/* Stats */}
         <div style={{ display: "flex", gap: "20px" }}>
           {[
-            { val: `${stats.totalTools}+`, label: "Tools" },
+            { val: `${stats.totalTools}`, label: "Projects reviewed" },
             { val: `${stats.airdropCount}`, label: "Airdrops" },
-            { val: `${stats.featuredCount}`, label: "Featured" },
-            { val: `${stats.totalCategories}`, label: "Categories" },
-          ].map(({ val, label }) => (
+          ]
+            .filter(({ val }) => val !== "0")
+            .map(({ val, label }) => (
             <div key={label} style={{ background: "rgba(124,77,255,0.15)", border: "1px solid rgba(124,77,255,0.3)", padding: "14px 24px", display: "flex", flexDirection: "column", alignItems: "center" }}>
               <span style={{ color: "#7C4DFF", fontSize: "28px", fontWeight: 900 }}>{val}</span>
               <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</span>

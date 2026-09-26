@@ -27,11 +27,11 @@ export function NextStep({
   if (!entry) return null;
 
   return (
-    <aside className="border border-emerald-500/25 bg-emerald-500/[0.06] p-6">
-      <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-400/80">
+    <aside aria-labelledby="next-step" className="border border-emerald-500/25 bg-emerald-500/[0.06] p-6">
+      <h2 id="next-step" className="text-[11px] font-bold uppercase tracking-widest text-emerald-300">
         {label}
-      </p>
-      <p className="mt-2 text-2xl font-bold leading-tight text-white">{entry.title}</p>
+      </h2>
+      <p className="mt-2 font-display text-2xl font-bold leading-tight text-white">{entry.title}</p>
       {entry.shortDescription && (
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/55">
           {entry.shortDescription}
@@ -43,15 +43,15 @@ export function NextStep({
           href={`/${entry.category}/${entry.slug}`}
           className="inline-flex items-center gap-2 bg-emerald-500 px-4 py-2 text-sm font-semibold text-[#07110d] transition-colors hover:bg-emerald-400"
         >
-          Read the full breakdown <ArrowRight className="h-3.5 w-3.5" />
+          Read the full breakdown <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
         </Link>
         {entry.potential && (
-          <span className="border border-white/[0.1] px-2.5 py-1 text-[11px] font-semibold text-white/60">
+          <span className="border border-white/[0.1] px-2.5 py-1 text-[11px] font-semibold text-white/70">
             {entry.potential}
           </span>
         )}
         {entry.chain && (
-          <span className="border border-white/[0.1] px-2.5 py-1 text-[11px] font-semibold text-white/60">
+          <span className="border border-white/[0.1] px-2.5 py-1 text-[11px] font-semibold text-white/70">
             {entry.chain}
           </span>
         )}

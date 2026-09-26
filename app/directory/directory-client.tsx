@@ -1,15 +1,35 @@
 "use client";
 
-import { useState, useMemo } from "react";
+// app/directory/directory-client.tsx
+// Search, filter and sort over a slim list the server renders into the HTML.
+//
+// URL parameters (?search= from the WebSite SearchAction, ?category=,
+// ?featured=true, ?risk=, ?price=) are applied after hydration. Reading them
+// with useSearchParams() instead would force this subtree to render
+// client-side only, leaving the static HTML crawlers get without the list.
+
+import { useEffect, useMemo, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
-import { CryptoEntryCard } from "@/components/crypto/CryptoEntryCard";
+import { CryptoEntryCard, type CryptoCardData } from "@/components/crypto/CryptoEntryCard";
 import type { CryptoEntry } from "@/lib/crypto/types";
 import type { CryptoCategory } from "@/lib/crypto/data-static";
 
+export type DirectoryItem = CryptoCardData &
+  Pick<CryptoEntry, "tags" | "token" | "createdAt"> & {
+    /** Lowercased plain-text excerpt of the description, for search. */
+    searchText: string;
+  };
+
 interface Props {
-  entries: CryptoEntry[];
+  entries: DirectoryItem[];
   categories: CryptoCategory[];
 }
+
+// Light category colours take ink text when used as an active pill fill.
+const INK_ON: Record<string, string> = {
+  "#34D163": "#0a0a0a", "#F5C842": "#0a0a0a", "#0ABFAA": "#0a0a0a", "#00C2E0": "#0a0a0a",
+  "#FF8C00": "#0a0a0a", "#FF4F2B": "#0a0a0a", "#EF3F24": "#0a0a0a",
+};
 
 const SORT_OPTIONS = [
   { value: "popular",  label: "Highest Rated" },
@@ -40,6 +60,19 @@ export function CryptoDirectoryClient({ entries, categories }: Props) {
   const [priceFilter, setPriceFilter] = useState("all");
   const [featuredOnly, setFeaturedOnly] = useState(false);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("search");
+    const category = params.get("category");
+    const risk = params.get("risk");
+    const price = params.get("price");
+    if (q) setSearch(q);
+    if (category && categories.some((c) => c.slug === category)) setCategory(category);
+    if (risk && RISK_OPTIONS.some((o) => o.value === risk)) setRiskFilter(risk);
+    if (price && PRICE_OPTIONS.some((o) => o.value === price)) setPriceFilter(price);
+    if (params.get("featured") === "true") setFeaturedOnly(true);
+  }, [categories]);
+
   const filtered = useMemo(() => {
     let result = [...entries];
     if (search) {
@@ -47,6 +80,7 @@ export function CryptoDirectoryClient({ entries, categories }: Props) {
       result = result.filter(e =>
         e.title.toLowerCase().includes(q) ||
         e.shortDescription.toLowerCase().includes(q) ||
+        e.searchText.includes(q) ||
         e.tags.some(t => t.toLowerCase().includes(q)) ||
         (e.chain && e.chain.toLowerCase().includes(q)) ||
         (e.token && e.token.toLowerCase().includes(q))
@@ -72,29 +106,23 @@ export function CryptoDirectoryClient({ entries, categories }: Props) {
   }
 
   return (
-    <div className="min-h-screen">
-      <section className="border-b border-white/[0.06] py-10">
-        <div className="container mx-auto px-4">
-          <h1 className="mb-1 font-display text-3xl font-black text-white">All Crypto Tools</h1>
-          <p className="text-white/40">{entries.length} tools, airdrops, and opportunities — independently reviewed.</p>
-        </div>
-      </section>
-
+    <>
       <section className="py-8">
         <div className="container mx-auto px-4">
 
           {/* Search */}
           <div className="relative mb-4">
-            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/20" />
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" aria-hidden="true" />
             <input
               type="search"
+              aria-label="Search the directory"
               placeholder="Search by name, chain, token, or tag…"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="h-12 w-full border border-white/[0.08] bg-white/[0.04] pl-11 pr-4 text-sm text-white placeholder:text-white/25 focus:border-[#7C4DFF] focus:outline-none transition-colors"
+              className="h-12 w-full border border-white/[0.08] bg-white/[0.04] pl-11 pr-4 text-sm text-white placeholder:text-white/45 focus:border-[#7C4DFF] focus:outline-none transition-colors"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60">
+              <button onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/80">
                 <X className="h-4 w-4" />
               </button>
             )}
@@ -103,7 +131,7 @@ export function CryptoDirectoryClient({ entries, categories }: Props) {
           {/* Filters */}
           <div className="mb-6 border border-white/[0.06] bg-white/[0.02] p-4">
             <div className="flex flex-wrap items-center gap-2 mb-4">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-white/25 mr-1">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-white/50 mr-1">
                 <SlidersHorizontal className="h-3 w-3" /> Filters
               </div>
 
@@ -127,13 +155,13 @@ export function CryptoDirectoryClient({ entries, categories }: Props) {
 
               <button
                 onClick={() => setFeaturedOnly(p => !p)}
-                className={`flex items-center gap-1.5 border px-3 py-1.5 text-xs font-bold transition-colors ${featuredOnly ? "border-[#F5C842]/50 bg-[#F5C842]/10 text-[#F5C842]" : "border-white/[0.08] bg-white/[0.04] text-white/40 hover:text-white/60"}`}
+                className={`flex items-center gap-1.5 border px-3 py-1.5 text-xs font-bold transition-colors ${featuredOnly ? "border-[#F5C842]/50 bg-[#F5C842]/10 text-[#F5C842]" : "border-white/[0.08] bg-white/[0.04] text-white/60 hover:text-white/85"}`}
               >
                 ⭐ Featured only
               </button>
 
               {activeFilterCount > 0 && (
-                <button onClick={clearAll} className="ml-auto flex items-center gap-1 text-xs text-white/30 hover:text-[#7C4DFF] transition-colors">
+                <button onClick={clearAll} className="ml-auto flex items-center gap-1 text-xs text-white/55 hover:text-[#B39DFF] transition-colors">
                   <X className="h-3 w-3" /> Clear {activeFilterCount} filter{activeFilterCount > 1 ? "s" : ""}
                 </button>
               )}
@@ -143,7 +171,7 @@ export function CryptoDirectoryClient({ entries, categories }: Props) {
             <div className="flex flex-wrap gap-1.5">
               <button
                 onClick={() => setCategory("all")}
-                className={`px-3 py-1 text-xs font-bold transition-colors ${selectedCategory === "all" ? "bg-[#7C4DFF] text-white" : "border border-white/[0.08] text-white/40 hover:border-[#7C4DFF]/40 hover:text-white/60"}`}
+                className={`px-3 py-1 text-xs font-bold transition-colors ${selectedCategory === "all" ? "bg-[#7C4DFF] text-white" : "border border-white/[0.08] text-white/60 hover:border-[#7C4DFF]/40 hover:text-white/85"}`}
               >
                 All ({entries.length})
               </button>
@@ -154,20 +182,20 @@ export function CryptoDirectoryClient({ entries, categories }: Props) {
                   <button
                     key={cat.id}
                     onClick={() => setCategory(active ? "all" : cat.slug)}
-                    className={`flex items-center gap-1 px-3 py-1 text-xs font-bold transition-colors ${active ? "text-white" : "border border-white/[0.08] text-white/40 hover:border-white/20 hover:text-white/60"}`}
-                    style={active ? { background: cat.color } : {}}
+                    className={`flex items-center gap-1 px-3 py-1 text-xs font-bold transition-colors ${active ? "text-white" : "border border-white/[0.08] text-white/60 hover:border-white/20 hover:text-white/85"}`}
+                    style={active ? { background: cat.color, color: INK_ON[cat.color] ?? "#fff" } : {}}
                   >
                     {cat.emoji} {cat.name}
-                    <span className={`ml-0.5 text-[10px] ${active ? "text-white/70" : "text-white/25"}`}>({count})</span>
+                    <span className={`ml-0.5 text-[10px] ${active ? "opacity-75" : "text-white/45"}`}>({count})</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          <p className="mb-4 text-xs text-white/25">
-            Showing <span className="font-bold text-white/50">{filtered.length}</span> of {entries.length} results
-            {activeFilterCount > 0 && <span className="ml-1 text-[#7C4DFF]">— {activeFilterCount} filter{activeFilterCount > 1 ? "s" : ""} active</span>}
+          <p className="mb-4 text-xs text-white/50" aria-live="polite">
+            Showing <span className="font-bold text-white/75">{filtered.length}</span> of {entries.length} results
+            {activeFilterCount > 0 && <span className="ml-1 text-[#B39DFF]">— {activeFilterCount} filter{activeFilterCount > 1 ? "s" : ""} active</span>}
           </p>
 
           {filtered.length > 0 ? (
@@ -177,13 +205,13 @@ export function CryptoDirectoryClient({ entries, categories }: Props) {
           ) : (
             <div className="border border-white/[0.06] bg-white/[0.02] py-20 text-center">
               <p className="text-2xl mb-2">🔍</p>
-              <p className="text-white/40 mb-3">No results match your filters.</p>
-              <button onClick={clearAll} className="text-xs text-[#7C4DFF] hover:underline">Clear all filters</button>
+              <p className="text-white/60 mb-3">No results match your filters.</p>
+              <button onClick={clearAll} className="text-xs text-[#B39DFF] hover:underline">Clear all filters</button>
             </div>
           )}
         </div>
       </section>
-    </div>
+    </>
   );
 }
 
@@ -195,14 +223,14 @@ function FilterPill({ label, value, active, children }: {
     <div className="relative">
       <button
         onClick={() => setOpen(p => !p)}
-        className={`flex items-center gap-1.5 border px-3 py-1.5 text-xs font-bold transition-colors ${active ? "border-[#7C4DFF]/50 bg-[#7C4DFF]/10 text-[#7C4DFF]" : "border-white/[0.08] bg-white/[0.04] text-white/50 hover:text-white/70"}`}
+        className={`flex items-center gap-1.5 border px-3 py-1.5 text-xs font-bold transition-colors ${active ? "border-[#7C4DFF]/50 bg-[#7C4DFF]/10 text-[#B39DFF]" : "border-white/[0.08] bg-white/[0.04] text-white/60 hover:text-white/85"}`}
       >
-        <span className="text-white/30 font-normal">{label}:</span> {value}
+        <span className="text-white/50 font-normal">{label}:</span> {value}
         <span className={`text-[8px] transition-transform ${open ? "rotate-180" : ""}`}>▼</span>
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-10" aria-hidden="true" onClick={() => setOpen(false)} />
           <div className="absolute left-0 top-full z-20 mt-1 min-w-[160px] border border-white/[0.08] bg-[#141414] shadow-xl">
             {children}
           </div>
@@ -218,7 +246,7 @@ function FilterOption({ active, onClick, children }: {
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors ${active ? "bg-[#7C4DFF]/20 text-[#7C4DFF] font-bold" : "text-white/50 hover:bg-white/[0.04] hover:text-white/80"}`}
+      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors ${active ? "bg-[#7C4DFF]/20 text-[#B39DFF] font-bold" : "text-white/60 hover:bg-white/[0.04] hover:text-white/85"}`}
     >
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? "bg-[#7C4DFF]" : ""}`} />
       {children}

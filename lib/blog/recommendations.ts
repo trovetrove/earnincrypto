@@ -3,249 +3,159 @@
 // Picks directory listings to surface inside blog articles.
 //
 // This is the per-site wiring around the engine. The scoring itself lives in
-// lib/seo/linkGraph.ts and the topic graph in lib/seo/clusters.ts; this file
-// loads the pool, decides which selection mode an article warrants, and maps
-// the winners back into the `Entry` shape the card components render.
+// lib/seo/linkGraph.ts, the topic graph in lib/seo/clusters.ts and the
+// page-level graph (intent, subject projects, pillars) in
+// lib/seo/contentGraph.ts; this file decides which selection mode an article
+// warrants and maps the winners back into the `CryptoEntry` shape the cards
+// render.
 //
-// What changed from the previous version, and why it matters:
-//
-//   * Selection is cluster- and intent-aware rather than category-and-tag
-//     similarity. A "Freecash vs Mistplay" reader gets money pages; a "how to
-//     make money online" reader gets one good option from each earning cluster.
+//   * Selection is cluster-, chain- and intent-aware. Intent comes from the
+//     article's title and slug as well as the admin fields, so "5 Binance
+//     Alternatives" is treated as a comparison-stage page, not a beginner guide.
 //   * Under-linked listings are deliberately favoured, so new directory entries
 //     stop being invisible.
-//   * Picks are stable. The old engine reshuffled daily, which meant no
-//     internal link ever persisted long enough to mean anything; variety now
-//     comes from a per-article hash instead of from the calendar.
+//   * Picks are stable: variety comes from a per-article hash, never the
+//     calendar, so an internal link persists long enough to mean something.
+//   * The blocks on one page never repeat a listing: the next-step CTA, the
+//     mid-article block and the discovery block are chosen as one set.
 //
 // Ads are NOT part of this. Paid placement is selected separately in
 // lib/ads/queries.ts so it can never be dressed up as an editorial pick.
-//
-// Kept in step with the same file in the sidehustletools repo — both sites read
-// the same Supabase project and share the engine in lib/seo/.
 
-import {
-  clusterSetFor,
-  type ClusterSet,
-} from "@/lib/seo/clusters";
-import {
-  getEntryPool,
-  getEntryRowsById,
-  postToGraphPost,
-  type Site,
-} from "@/lib/seo/graphData";
+import { getContentGraph, type ContentGraph } from "@/lib/seo/contentGraph";
 import {
   rankEntries,
   selectEntries,
   shouldSpread,
   DISCOVERY_FLOOR,
   RELEVANCE_FLOOR,
-  type GraphPost,
   type ScoredEntry,
 } from "@/lib/seo/linkGraph";
+import { entriesFromGraph } from "@/lib/crypto/queries";
 import type { CryptoEntry } from "@/lib/crypto/types";
 import type { BlogPost } from "@/lib/blog/queries";
 
-const SITE: Site = "crypto";
+export type ArticlePicks = {
+  primary: ScoredEntry | null;
+  whileHere: ScoredEntry[];
+  exploreMore: ScoredEntry[];
+};
 
-function mapRow(row: any): CryptoEntry {
-  return {
-    id: row.id,
-    title: row.title,
-    slug: row.slug,
-    category: row.category,
-    description: row.description,
-    shortDescription: row.short_description,
-    url: row.url,
-    referralUrl: row.referral_url ?? undefined,
-    logoUrl: row.logo_url ?? undefined,
-    priceTier: row.price_tier,
-    rating: row.rating,
-    potential: row.potential ?? "",
-    effortLevel: row.effort_level,
-    chain: row.chain ?? undefined,
-    token: row.token ?? undefined,
-    riskLevel: row.risk_level,
-    audience: row.audience ?? [],
-    tags: row.tags ?? [],
-    pros: row.pros ?? [],
-    cons: row.cons ?? [],
-    howToUse: row.how_to_use ?? [],
-    alternatives: row.alternatives ?? [],
-    freeTierDetails: row.free_tier_details ?? undefined,
-    realisticValue: row.realistic_value ?? "",
-    isMobileFriendly: row.is_mobile_friendly,
-    isFeatured: row.is_featured,
-    isVerified: row.is_verified,
-    metaTitle: row.meta_title ?? undefined,
-    metaDescription: row.meta_description ?? undefined,
-    bestFor: row.best_for ?? undefined,
-    faqItems: row.faq_items ?? [],
-    tasks: row.tasks ?? [],
-    rewards: row.rewards ?? [],
-    requirements: row.requirements ?? [],
-    importantDates: row.important_dates ?? [],
-    feeTiers: row.fee_tiers ?? [],
-    yieldTiers: row.yield_tiers ?? [],
-    statsBar: row.stats_bar ?? [],
-    socialLinks: row.social_links ?? [],
-    supportedAssets: row.supported_assets ?? "",
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-async function toEntries(scored: ScoredEntry[]): Promise<CryptoEntry[]> {
-  const rows = await getEntryRowsById(SITE);
-  return scored
-    .map((s) => rows.get(s.entry.id))
-    .filter(Boolean)
-    .map((row) => mapRow(row));
-}
-
-type Prepared = {
-  graphPost: GraphPost;
-  ranked: ScoredEntry[];
-  set: ClusterSet;
-  pinnedIds: string[];
+export type ArticleRecommendations = {
+  primary: CryptoEntry | null;
+  whileHere: CryptoEntry[];
+  exploreMore: CryptoEntry[];
 };
 
 /**
- * Loads and ranks once per article render. Both blocks call this; React's
- * `cache` on the underlying reads means the database is hit once regardless.
+ * Every directory block for one article, chosen together so no listing appears
+ * twice on the page. Pure — the graph harness calls it directly.
+ *
+ *   primary     — the single funnel CTA: the author's primaryEntrySlug, else the
+ *                 top money page that clears the strict relevance floor, else
+ *                 nothing (a weak CTA is worse than none).
+ *   whileHere   — the tight, commercially weighted block after the first
+ *                 section. Broad top-of-funnel articles switch to spread mode:
+ *                 one strong option per cluster beats five variations of one.
+ *   exploreMore — the looser discovery block, with a minority of slots for
+ *                 adjacent clusters.
  */
-async function prepare(post: BlogPost): Promise<Prepared> {
-  const set = clusterSetFor(SITE);
-  const graphPost = postToGraphPost(
-    {
-      ...post,
-      cluster: post.cluster,
-      intentStage: post.intentStage,
-      pageType: post.pageType,
-      primaryEntrySlug: post.primaryEntrySlug,
-    },
-    SITE
+export function pickArticleListings(
+  graph: ContentGraph,
+  postId: string,
+  sizes: { whileHere: number; exploreMore: number }
+): ArticlePicks {
+  const graphPost = graph.postById.get(postId);
+  if (!graphPost) return { primary: null, whileHere: [], exploreMore: [] };
+  const set = graph.set;
+
+  // A reader of "Binance Alternatives" is looking to leave Binance. The
+  // exchange stays linked where the author names it in the prose, but no
+  // recommendation block or next-step CTA offers it back — not even when the
+  // admin pinned it, which older alternatives posts routinely did.
+  const excludedSubjects =
+    graphPost.pageType === "BLOG_ALTERNATIVES"
+      ? new Set(
+          graphPost.subjectEntitySlugs
+            .map((s) => graph.entryBySlug.get(s)?.id)
+            .filter((id): id is string => Boolean(id))
+        )
+      : new Set<string>();
+  const ranked = rankEntries(graphPost, graph.entries, set).filter(
+    (r) => !excludedSubjects.has(r.entry.id)
+  );
+  const byId = new Map(ranked.map((r) => [r.entry.id, r]));
+
+  const used = new Set<string>();
+
+  let primary: ScoredEntry | undefined;
+  if (graphPost.primaryEntrySlug) {
+    primary = ranked.find((r) => r.entry.slug === graphPost.primaryEntrySlug);
+  }
+  primary ??= ranked.find(
+    (r) => r.score.topicalRelevance >= RELEVANCE_FLOOR && r.entry.revenuePriority >= 50
+  );
+  if (primary) used.add(primary.entry.id);
+
+  const spread = shouldSpread(graphPost, set.fallback);
+  const whileChosen = selectEntries(
+    graphPost,
+    ranked,
+    set,
+    spread
+      ? { limit: sizes.whileHere, floor: DISCOVERY_FLOOR, mode: "spread", maxPerCluster: 1, exclude: used }
+      : { limit: sizes.whileHere, floor: RELEVANCE_FLOOR, exclude: used }
   );
 
-  const pool = await getEntryPool(SITE);
-  const bySlug = new Map(pool.map((e) => [e.slug, e]));
-
-  // Author pins are resolved here rather than with a separate query: the pool
-  // is already loaded, and this keeps the author's ordering intact.
-  const pinnedIds = post.relatedEntrySlugs
-    .map((slug) => bySlug.get(slug)?.id)
-    .filter((id): id is string => Boolean(id));
-
-  return { graphPost, ranked: rankEntries(graphPost, pool, set), set, pinnedIds };
-}
-
-function pinnedFirst(
-  prepared: Prepared,
-  chosen: ScoredEntry[],
-  limit: number
-): ScoredEntry[] {
-  if (!prepared.pinnedIds.length) return chosen.slice(0, limit);
-
-  const byId = new Map(prepared.ranked.map((r) => [r.entry.id, r]));
-  const pinned = prepared.pinnedIds
+  // Author pins lead the tight block, in the author's order.
+  const pinned = graphPost.relatedEntrySlugs
+    .map((slug) => graph.entryBySlug.get(slug)?.id)
+    .filter((id): id is string => Boolean(id) && !used.has(id!))
     .map((id) => byId.get(id))
     .filter((r): r is ScoredEntry => Boolean(r));
-
-  const seen = new Set(pinned.map((p) => p.entry.id));
-  return [...pinned, ...chosen.filter((c) => !seen.has(c.entry.id))].slice(0, limit);
-}
-
-/**
- * Tight, highly-relevant block placed mid-article — the one that carries the
- * commercial weight.
- *
- * Broad top-of-funnel articles switch to spread mode here: they are the site's
- * largest traffic source and its weakest converter, so handing the reader one
- * strong option per earning cluster beats five variations of the same thing.
- */
-export async function getWhileYoureHereListings(
-  post: BlogPost,
-  limit = 3
-): Promise<CryptoEntry[]> {
-  const prepared = await prepare(post);
-  const spread = shouldSpread(prepared.graphPost, prepared.set.fallback);
-
-  const chosen = selectEntries(
-    prepared.graphPost,
-    prepared.ranked,
-    prepared.set,
-    spread
-      ? { limit, floor: DISCOVERY_FLOOR, mode: "spread", maxPerCluster: 1 }
-      : { limit, floor: RELEVANCE_FLOOR }
+  const pinnedIds = new Set(pinned.map((p) => p.entry.id));
+  const whileHere = [...pinned, ...whileChosen.filter((c) => !pinnedIds.has(c.entry.id))].slice(
+    0,
+    sizes.whileHere
   );
+  for (const p of whileHere) used.add(p.entry.id);
 
-  return toEntries(pinnedFirst(prepared, chosen, limit));
-}
-
-/**
- * Broader discovery block, placed later in the article.
- *
- * Pass the entries already shown by getWhileYoureHereEntries so the same
- * listing never appears twice on one page.
- */
-export async function getExploreMoreListings(
-  post: BlogPost,
-  limit = 4,
-  exclude: CryptoEntry[] = []
-): Promise<CryptoEntry[]> {
-  const prepared = await prepare(post);
-  const spread = shouldSpread(prepared.graphPost, prepared.set.fallback);
-
-  const chosen = selectEntries(prepared.graphPost, prepared.ranked, prepared.set, {
-    limit,
+  const exploreMore = selectEntries(graphPost, ranked, set, {
+    limit: sizes.exploreMore,
     floor: DISCOVERY_FLOOR,
     crossClusterRatio: 0.25,
     mode: spread ? "spread" : "focused",
     maxPerCluster: 2,
-    exclude: new Set(exclude.map((e) => e.id)),
-  });
+    exclude: used,
+  }).slice(0, sizes.exploreMore);
 
-  // Pins belong in the tight block, not repeated down here.
-  return toEntries(chosen.slice(0, limit));
+  return { primary: primary ?? null, whileHere, exploreMore };
 }
 
-/**
- * The single best next destination for this article — the funnel CTA.
- *
- * Prefers the author's explicit `primaryEntrySlug`, then the top-scoring
- * candidate that clears the strict floor. Returns null rather than forcing a
- * weak CTA onto an article with no good destination.
- */
-export async function getPrimaryDestination(post: BlogPost): Promise<CryptoEntry | null> {
-  const prepared = await prepare(post);
-
-  if (post.primaryEntrySlug) {
-    const match = prepared.ranked.find((r) => r.entry.slug === post.primaryEntrySlug);
-    if (match) return (await toEntries([match]))[0] ?? null;
-  }
-
-  const best = prepared.ranked.find(
-    (r) => r.score.topicalRelevance >= RELEVANCE_FLOOR && r.entry.revenuePriority >= 50
-  );
-  if (!best) return null;
-
-  return (await toEntries([best]))[0] ?? null;
+export async function getArticleRecommendations(
+  post: BlogPost,
+  sizes: { whileHere: number; exploreMore: number }
+): Promise<ArticleRecommendations> {
+  const graph = await getContentGraph("crypto");
+  const picks = pickArticleListings(graph, post.id, sizes);
+  const [primary, whileHere, exploreMore] = await Promise.all([
+    picks.primary ? entriesFromGraph([picks.primary.entry.id]).then((e) => e[0] ?? null) : null,
+    entriesFromGraph(picks.whileHere.map((p) => p.entry.id)),
+    entriesFromGraph(picks.exploreMore.map((p) => p.entry.id)),
+  ]);
+  return { primary, whileHere, exploreMore };
 }
 
 /**
  * The entity index for in-prose auto-linking: every listing, with the names and
- * aliases the linker matches on.
- *
- * Returns the whole directory rather than pre-filtering to what the article
- * mentions, because matching has to happen against the rendered HTML, not the
- * stored content — selectLinkableEntities() in lib/seo/entityLinker.ts does the
- * filtering and only ever links platforms the author already named.
+ * aliases the linker matches on. selectLinkableEntities() in
+ * lib/seo/entityLinker.ts filters this down to projects the author named.
  */
-export async function getEntityLinkIndex(_post: BlogPost): Promise<
+export async function getEntityLinkIndex(): Promise<
   { slug: string; title: string; category: string; aliases: string[]; revenuePriority: number }[]
 > {
-  const pool = await getEntryPool(SITE);
-  return pool.map((e) => ({
+  const graph = await getContentGraph("crypto");
+  return graph.entries.map((e) => ({
     slug: e.slug,
     title: e.title,
     category: e.category,

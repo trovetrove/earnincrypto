@@ -124,7 +124,7 @@
 .crypto-prose ol li { counter-increment: crypto-counter; padding-left: 2em; position: relative; margin-bottom: 0.3em; color: rgba(255,255,255,0.6); }
 .crypto-prose ol li::before { content: counter(crypto-counter); position: absolute; left: 0; width: 1.3em; height: 1.3em; background: #7C4DFF; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; color: #fff; top: 0.15em; }
 .crypto-prose blockquote { border-left: 3px solid #7C4DFF; padding: 0.5em 1em; margin: 0.8em 0; color: rgba(255,255,255,0.4); font-style: italic; background: rgba(124,77,255,0.05); }
-.crypto-prose a { color: #7C4DFF; text-decoration: underline; }
+.crypto-prose a { color: #B39DFF; text-decoration: underline; }
 .crypto-prose strong, .crypto-prose b { color: rgba(255,255,255,0.9); font-weight: 700; }
 .crypto-prose hr { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 1em 0; }
 .crypto-prose > *:first-child { margin-top: 0; }
@@ -138,7 +138,7 @@
 .rich-prose ul { list-style: none; padding: 0; margin: 0.5em 0 0.9em; }
 .rich-prose ul li { padding-left: 1.4em; position: relative; margin-bottom: 0.35em; }
 .rich-prose ul li::before { content: "▸"; position: absolute; left: 0; color: #7C4DFF; font-weight: 900; }
-.rich-prose a { color: #7C4DFF; text-decoration: underline; }
+.rich-prose a { color: #B39DFF; text-decoration: underline; } /* #7C4DFF is 3.4:1 on the page background; links in body text need 4.5:1 */
 .rich-prose a:not([href]), .crypto-prose a:not([href]) { color: inherit; text-decoration: none; }
 /* Links the entity auto-linker adds to project names in prose. Deliberately
    quieter than an authored link — a dotted underline reads as "this is a thing
