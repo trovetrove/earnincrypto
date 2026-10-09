@@ -193,25 +193,44 @@ export function linkEntities(
  * Ordered by money-page value so that when the cap binds, the links that
  * survive are the ones pointing somewhere that converts.
  */
+export type EntityIndexRow = {
+  slug: string;
+  title: string;
+  category: string;
+  aliases: string[];
+  revenuePriority: number;
+};
+
+const searchNameCache = new WeakMap<EntityIndexRow, string[]>();
+
+/**
+ * The names of one index row worth searching for, lowercased.
+ *
+ * Cached per row because the index is the whole directory and this is called
+ * once per row per article — during the link census, that is every listing
+ * against every article. The rows are the same objects each time (see
+ * getEntityLinkIndex), so the normalising is done once.
+ */
+function searchNames(entry: EntityIndexRow): string[] {
+  let hit = searchNameCache.get(entry);
+  if (!hit) {
+    hit = [entry.title, ...entry.aliases]
+      .map((n) => n.toLowerCase().trim())
+      .filter((n) => n.length >= MIN_NAME_LENGTH);
+    searchNameCache.set(entry, hit);
+  }
+  return hit;
+}
+
 export function selectLinkableEntities(
   plainText: string,
-  entries: {
-    slug: string;
-    title: string;
-    category: string;
-    aliases: string[];
-    revenuePriority: number;
-  }[],
+  entries: EntityIndexRow[],
   limit = DEFAULT_MAX_LINKS
 ): LinkableEntity[] {
   const haystack = plainText.toLowerCase();
 
   return entries
-    .filter((e) =>
-      [e.title, ...e.aliases].some(
-        (n) => n.trim().length >= MIN_NAME_LENGTH && haystack.includes(n.toLowerCase().trim())
-      )
-    )
+    .filter((e) => searchNames(e).some((n) => haystack.includes(n)))
     .sort((a, b) => b.revenuePriority - a.revenuePriority)
     .slice(0, limit)
     .map((e) => ({

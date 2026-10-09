@@ -4,10 +4,16 @@
 // the shapes lib/seo/linkGraph.ts scores. The graph itself is assembled in
 // lib/seo/contentGraph.ts.
 //
-// Each table is read exactly once per render. An article page used to read
+// Each table is read exactly once per render, and in practice far less often
+// than that: both reads go through the Next data cache and a per-instance memo
+// (lib/cache/content.ts), so Supabase is only touched when content has
+// actually changed or a cache entry has expired. An article page used to read
 // crypto_blog_posts four separate times (the post, the related-post pool, the
 // inbound-link census and getPublishedPosts) and a listing page ran four
 // queries for its sidebars; everything now comes out of these two cached reads.
+//
+// The cache is cleared by tag from app/api/revalidate/route.ts, which the
+// manage panel calls when it publishes.
 //
 // Both tables are written by the sidehustletools manage panel; this app only
 // reads them and picks changes up through its own ISR. Newer columns (cluster,
@@ -19,6 +25,13 @@
 
 import { cache } from "react";
 import { getSupabaseServerSafe } from "@/lib/supabase/safe";
+import {
+  cachedRead,
+  processCache,
+  TAG_CONTENT,
+  TAG_ENTRIES,
+  TAG_POSTS,
+} from "@/lib/cache/content";
 import { resolveCluster, type ClusterSet } from "./clusters";
 import type { GraphEntry } from "./linkGraph";
 
@@ -92,27 +105,30 @@ export type RawPost = {
 };
 
 /**
- * The full directory, read whole: at a few hundred rows the table is far
- * smaller than the cost of getting the ranking wrong, and a capped read would
- * make exactly the under-linked listings authority balancing exists to help
+ * The uncached reads. Both throw on failure rather than returning [], which is
+ * what keeps a transient Supabase error out of the caches below:
+ * `unstable_cache` only stores a fulfilled value, and processCache evicts a
+ * rejected slot, so the next request retries instead of serving an empty
+ * directory for a day. The exported wrappers turn the rejection back into [].
+ *
+ * The directory is read whole: at a few hundred rows the table is far smaller
+ * than the cost of getting the ranking wrong, and a capped read would make
+ * exactly the under-linked listings authority balancing exists to help
  * invisible to the scorer.
  */
-export const getRawEntryRows = cache(async (site: Site): Promise<RawEntry[]> => {
+async function readEntryRows(site: Site): Promise<RawEntry[]> {
+  // No credentials is a stable condition, not a transient failure: cache it.
   const sb = getSupabaseServerSafe();
   if (!sb) return [];
 
   const { entries } = tablesFor(site);
   const { data, error } = await sb.from(entries).select("*");
 
-  if (error || !data) {
-    if (error) console.error("[getRawEntryRows]", error.message);
-    return [];
-  }
-  return data as RawEntry[];
-});
+  if (error) throw new Error(error.message);
+  return (data ?? []) as RawEntry[];
+}
 
-/** Every published article, newest first — the one read all blog surfaces share. */
-export const getRawPublishedPostRows = cache(async (site: Site): Promise<RawPost[]> => {
+async function readPublishedPostRows(site: Site): Promise<RawPost[]> {
   const sb = getSupabaseServerSafe();
   if (!sb) return [];
 
@@ -123,11 +139,48 @@ export const getRawPublishedPostRows = cache(async (site: Site): Promise<RawPost
     .eq("status", "published")
     .order("published_at", { ascending: false });
 
-  if (error || !data) {
-    if (error) console.error("[getRawPublishedPostRows]", error.message);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as RawPost[];
+}
+
+/**
+ * One data-cache entry per site per table, built at module scope so the key
+ * array is fixed.
+ */
+const SITES: Site[] = ["main", "crypto"];
+
+function bySite<T>(make: (site: Site) => () => Promise<T>): Record<Site, () => Promise<T>> {
+  return Object.fromEntries(SITES.map((s) => [s, make(s)])) as Record<Site, () => Promise<T>>;
+}
+
+const cachedEntryReads = bySite<RawEntry[]>((site) =>
+  cachedRead(() => readEntryRows(site), ["raw-entry-rows", site], [TAG_CONTENT, TAG_ENTRIES])
+);
+
+const cachedPostReads = bySite<RawPost[]>((site) =>
+  cachedRead(() => readPublishedPostRows(site), ["raw-post-rows", site], [TAG_CONTENT, TAG_POSTS])
+);
+
+const memoEntryRows = processCache<RawEntry[]>((site) => cachedEntryReads[site as Site]());
+const memoPostRows = processCache<RawPost[]>((site) => cachedPostReads[site as Site]());
+
+export const getRawEntryRows = cache(async (site: Site): Promise<RawEntry[]> => {
+  try {
+    return await memoEntryRows(site);
+  } catch (err) {
+    console.error("[getRawEntryRows]", err instanceof Error ? err.message : err);
     return [];
   }
-  return data as RawPost[];
+});
+
+/** Every published article, newest first — the one read all blog surfaces share. */
+export const getRawPublishedPostRows = cache(async (site: Site): Promise<RawPost[]> => {
+  try {
+    return await memoPostRows(site);
+  } catch (err) {
+    console.error("[getRawPublishedPostRows]", err instanceof Error ? err.message : err);
+    return [];
+  }
 });
 
 // ── Normalisers ──────────────────────────────────────────────────────

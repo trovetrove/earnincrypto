@@ -23,6 +23,7 @@
 // lib/ads/queries.ts so it can never be dressed up as an editorial pick.
 
 import { getContentGraph, type ContentGraph } from "@/lib/seo/contentGraph";
+import type { EntityIndexRow } from "@/lib/seo/entityLinker";
 import {
   rankEntries,
   selectEntries,
@@ -60,7 +61,37 @@ export type ArticleRecommendations = {
  *   exploreMore — the looser discovery block, with a minority of slots for
  *                 adjacent clusters.
  */
+/**
+ * Picks are a pure function of the graph, so they are cached against it.
+ *
+ * `rankEntries` scores the whole directory for one article; doing that on
+ * every render of every article page was the second-biggest cost on the site
+ * after building the graph itself. The graph is now held across requests
+ * (lib/seo/contentGraph.ts), and this rides on it: the keys live in a WeakMap
+ * on the graph object, so they are dropped with it when content changes.
+ */
+const picksByGraph = new WeakMap<ContentGraph, Map<string, ArticlePicks>>();
+
 export function pickArticleListings(
+  graph: ContentGraph,
+  postId: string,
+  sizes: { whileHere: number; exploreMore: number }
+): ArticlePicks {
+  let cache = picksByGraph.get(graph);
+  if (!cache) {
+    cache = new Map<string, ArticlePicks>();
+    picksByGraph.set(graph, cache);
+  }
+  const cacheKey = `${postId}|${sizes.whileHere}|${sizes.exploreMore}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
+  const picks = computeArticleListings(graph, postId, sizes);
+  cache.set(cacheKey, picks);
+  return picks;
+}
+
+function computeArticleListings(
   graph: ContentGraph,
   postId: string,
   sizes: { whileHere: number; exploreMore: number }
@@ -151,15 +182,9 @@ export async function getArticleRecommendations(
  * aliases the linker matches on. selectLinkableEntities() in
  * lib/seo/entityLinker.ts filters this down to projects the author named.
  */
-export async function getEntityLinkIndex(): Promise<
-  { slug: string; title: string; category: string; aliases: string[]; revenuePriority: number }[]
-> {
+export async function getEntityLinkIndex(): Promise<EntityIndexRow[]> {
   const graph = await getContentGraph("crypto");
-  return graph.entries.map((e) => ({
-    slug: e.slug,
-    title: e.title,
-    category: e.category,
-    aliases: e.aliases,
-    revenuePriority: e.revenuePriority,
-  }));
+  // Built with the graph, not per call: the linker caches the normalised names
+  // of each row, and that only pays off while the rows are the same objects.
+  return graph.entityLinkIndex;
 }

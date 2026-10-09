@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getPublishedPosts } from "@/lib/blog/queries";
@@ -6,41 +7,48 @@ import { BannerAd } from "@/components/ad-slots";
 import { Breadcrumbs } from "@/components/seo/Breadcrumbs";
 import { getContentGraph, hubPath, pageTypeLabel } from "@/lib/seo/contentGraph";
 import { buildMetadata, formatDate } from "@/lib/seo/metadata";
+import { BlogList, type BlogListItem } from "./blog-list";
 
-export const revalidate = 600;
+// ISR window: a day, not an hour. Nothing here changes on its own — it changes
+// when an editor publishes, and publishing calls /api/revalidate, which clears
+// these pages and the row cache behind them. The window is the backstop for a
+// webhook that never arrived, so it costs a render a day per URL instead of
+// one an hour whether or not anything changed.
+export const revalidate = 86400;
 
 /**
  * The blog index is one indexable page. `?category=` filters are slices of the
- * same list: they canonicalise to /blog and are noindexed. Topic hubs used to
- * live here as `?cluster=` views; they are now real pages under /topics and the
- * old URLs 301 there (see middleware.ts).
+ * same list, applied in the browser (./blog-list.tsx): they canonicalise to
+ * /blog and middleware.ts sends them `X-Robots-Tag: noindex, follow`, the same
+ * way /directory handles its filters. Reading the query string here instead
+ * would make the route dynamic and re-render the whole list on every hit.
+ *
+ * Topic hubs used to live here as `?cluster=` views; they are now real pages
+ * under /topics and the old URLs 301 there (see middleware.ts).
  */
-export async function generateMetadata({
-  searchParams,
-}: {
-  searchParams: Promise<{ category?: string }>;
-}): Promise<Metadata> {
-  const { category } = await searchParams;
-  return buildMetadata({
-    title: "Crypto Blog: Airdrop Guides, Reviews & Comparisons",
-    description:
-      "Research-driven guides on crypto airdrops, wallets, DeFi yield, exchanges and trading tools — reviews, head-to-heads and safety checks. No hype, no fake claims.",
-    path: "/blog",
-    noindex: Boolean(category),
-  });
-}
+export const metadata: Metadata = buildMetadata({
+  title: "Crypto Blog: Airdrop Guides, Reviews & Comparisons",
+  description:
+    "Research-driven guides on crypto airdrops, wallets, DeFi yield, exchanges and trading tools — reviews, head-to-heads and safety checks. No hype, no fake claims.",
+  path: "/blog",
+});
 
-export default async function BlogIndexPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ category?: string }>;
-}) {
-  const { category } = await searchParams;
+export default async function BlogIndexPage() {
   const [allPosts, graph] = await Promise.all([getPublishedPosts(), getContentGraph("crypto")]);
 
-  const posts = category ? allPosts.filter((p) => p.category === category) : allPosts;
-  const featured = !category ? posts.find((p) => p.isFeatured) : undefined;
-  const rest = featured ? posts.filter((p) => p.id !== featured.id) : posts;
+  const items: BlogListItem[] = allPosts.map((post) => {
+    const node = graph.postById.get(post.id);
+    return {
+      id: post.id,
+      slug: post.slug,
+      title: post.title,
+      subtitle: post.subtitle,
+      category: post.category,
+      publishedLabel: formatDate(post.publishedAt, "short"),
+      isFeatured: post.isFeatured,
+      typeLabel: node ? pageTypeLabel(node.pageType) : null,
+    };
+  });
 
   // Only offer filters that actually have posts behind them.
   const activeCategories = cryptoBlogCategories.filter((c) =>
@@ -52,18 +60,6 @@ export default async function BlogIndexPage({
     .map((c) => ({ def: c, count: graph.postsByCluster.get(c.id)?.length ?? 0 }))
     .filter((t) => t.count > 0)
     .sort((a, b) => b.count - a.count);
-
-  const typeOf = (id: string) => {
-    const node = graph.postById.get(id);
-    return node ? pageTypeLabel(node.pageType) : null;
-  };
-
-  const chip = (active: boolean) =>
-    `border px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ${
-      active
-        ? "border-[#7C4DFF] bg-[#7C4DFF]/15 text-[#B39DFF]"
-        : "border-white/[0.1] text-white/60 hover:text-white"
-    }`;
 
   return (
     <div className="min-h-screen">
@@ -86,7 +82,11 @@ export default async function BlogIndexPage({
             <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-white/50">Topics</p>
             <div className="flex flex-wrap gap-2">
               {topics.map(({ def, count }) => (
-                <Link key={def.id} href={hubPath(def.id)} className={chip(false)}>
+                <Link
+                  key={def.id}
+                  href={hubPath(def.id)}
+                  className="border border-white/[0.1] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white/60 transition-colors hover:text-white"
+                >
                   {def.label}
                   <span className="ml-1.5 opacity-60">{count}</span>
                 </Link>
@@ -95,71 +95,14 @@ export default async function BlogIndexPage({
           </nav>
         )}
 
-        {/* Article-type filter */}
-        {activeCategories.length > 0 && (
-          <div className="mb-8 flex flex-wrap gap-2">
-            <Link href="/blog" className={chip(!category)}>
-              All
-            </Link>
-            {activeCategories.map((c) => (
-              <Link key={c.value} href={`/blog?category=${c.value}`} className={chip(category === c.value)}>
-                {c.label}
-              </Link>
-            ))}
-          </div>
-        )}
-
-        {posts.length === 0 ? (
-          <p className="py-16 text-center text-white/55">
-            {category ? "Nothing published under this filter yet." : "No posts published yet. Check back soon."}
-          </p>
-        ) : (
-          <div className="space-y-8">
-            {featured && (
-              <Link
-                href={`/blog/${featured.slug}`}
-                className="group block border border-white/[0.08] bg-white/[0.02] p-7 transition-all hover:border-[#7C4DFF]/40 hover:bg-white/[0.04]"
-              >
-                <span className="mb-3 inline-block bg-[#F5C842] px-2 py-0.5 text-[10px] font-bold uppercase text-[#0a0a0a]">
-                  Featured
-                </span>
-                <h2 className="font-display text-2xl font-bold leading-tight text-white transition-colors group-hover:text-[#B39DFF] md:text-3xl">
-                  {featured.title}
-                </h2>
-                {featured.subtitle && (
-                  <p className="mt-2 max-w-3xl text-white/60">{featured.subtitle}</p>
-                )}
-                <p className="mt-3 text-xs text-white/50">{formatDate(featured.publishedAt, "short")}</p>
-              </Link>
-            )}
-
-            <BannerAd id="blog-index" />
-
-            <h2 className="sr-only">{category ? "Filtered articles" : "All articles"}</h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {rest.map((post) => (
-                <Link
-                  key={post.id}
-                  href={`/blog/${post.slug}`}
-                  className="group flex flex-col gap-2 border border-white/[0.06] bg-white/[0.02] p-5 transition-all hover:border-white/20 hover:bg-white/[0.05]"
-                >
-                  {typeOf(post.id) && (
-                    <span className="w-fit border border-white/[0.1] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/60">
-                      {typeOf(post.id)}
-                    </span>
-                  )}
-                  <h3 className="font-display text-base font-bold leading-snug text-white transition-colors group-hover:text-[#B39DFF]">
-                    {post.title}
-                  </h3>
-                  {post.subtitle && (
-                    <p className="text-sm leading-relaxed text-white/55 line-clamp-3">{post.subtitle}</p>
-                  )}
-                  <p className="mt-auto pt-2 text-[11px] text-white/50">{formatDate(post.publishedAt, "short")}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* useSearchParams needs a boundary for the page to prerender. */}
+        <Suspense fallback={<div className="py-16" />}>
+          <BlogList
+            posts={items}
+            categories={activeCategories}
+            banner={<BannerAd id="blog-index" />}
+          />
+        </Suspense>
       </div>
     </div>
   );

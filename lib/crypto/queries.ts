@@ -10,6 +10,7 @@
 
 import { cache } from "react";
 import { getSupabaseServer } from "@/lib/supabase/server";
+import { cachedRead, TAG_CONTENT, TAG_ENTRIES } from "@/lib/cache/content";
 import { getContentGraph } from "@/lib/seo/contentGraph";
 import type { CryptoEntry } from "./types";
 import { cryptoCategories } from "./data-static";
@@ -116,23 +117,47 @@ export async function getCryptoStats() {
 }
 
 // ── Edge-runtime reads (OG images) ───────────────────────────────────
+//
+// OG images render outside the page's React tree, so they can't share its
+// cached read of the graph. They go through the data cache instead, on the
+// same tags — otherwise every crawler fetch of a card is a fresh query, and a
+// bot walking made-up slugs is a query per 404.
+
+const SLUG_SHAPE = /^[a-z0-9][a-z0-9-]{0,80}$/;
 
 export async function getCryptoEntryBySlug(slug: string): Promise<CryptoEntry | null> {
-  const sb = getSupabaseServer();
-  const { data, error } = await sb
-    .from("crypto_entries").select("*").eq("slug", slug).single();
-  if (error) {
-    if (error.code !== "PGRST116") console.error("[getCryptoEntryBySlug]", error.message);
-    return null;
-  }
-  return mapCryptoRow(data);
+  // A junk slug can't match a row, so don't spend a query finding that out.
+  if (!SLUG_SHAPE.test(slug)) return null;
+
+  return cachedRead(
+    async () => {
+      const sb = getSupabaseServer();
+      const { data, error } = await sb
+        .from("crypto_entries").select("*").eq("slug", slug).maybeSingle();
+      if (error) {
+        console.error("[getCryptoEntryBySlug]", error.message);
+        throw new Error(error.message);
+      }
+      return data ? mapCryptoRow(data) : null;
+    },
+    ["crypto-entry", slug],
+    [TAG_CONTENT, TAG_ENTRIES]
+  )().catch(() => null);
 }
 
+const cachedCounts = cachedRead(
+  async () => {
+    const sb = getSupabaseServer();
+    const [{ count: totalTools }, { count: airdropCount }] = await Promise.all([
+      sb.from("crypto_entries").select("*", { count: "exact", head: true }),
+      sb.from("crypto_entries").select("*", { count: "exact", head: true }).eq("category", "airdrops"),
+    ]);
+    return { totalTools: totalTools ?? 0, airdropCount: airdropCount ?? 0 };
+  },
+  ["crypto-counts"],
+  [TAG_CONTENT, TAG_ENTRIES]
+);
+
 export async function getCryptoCountsDirect() {
-  const sb = getSupabaseServer();
-  const [{ count: totalTools }, { count: airdropCount }] = await Promise.all([
-    sb.from("crypto_entries").select("*", { count: "exact", head: true }),
-    sb.from("crypto_entries").select("*", { count: "exact", head: true }).eq("category", "airdrops"),
-  ]);
-  return { totalTools: totalTools ?? 0, airdropCount: airdropCount ?? 0 };
+  return cachedCounts().catch(() => ({ totalTools: 0, airdropCount: 0 }));
 }

@@ -9,6 +9,13 @@
 
 import { cache } from "react";
 import { getSupabaseServerSafe } from "@/lib/supabase/safe";
+import {
+  ADS_REVALIDATE_SECONDS,
+  cachedRead,
+  processCache,
+  TAG_ADS,
+  TAG_CONTENT,
+} from "@/lib/cache/content";
 import type { CryptoAdRow, AdPlacement } from "@/lib/supabase/types";
 
 export type AdPlacementRecord = {
@@ -46,26 +53,51 @@ function mapAdRow(row: CryptoAdRow): AdPlacementRecord {
 }
 
 /**
+ * Every active ad. The serving window used to be a `now` in the query, which
+ * made the read uncacheable — a different SQL string every second — so this
+ * fetches the active campaigns and applies the window in JS instead. The
+ * result is a stable cache key, one hourly query per region at most, and a
+ * table small enough that filtering a handful of rows costs nothing.
+ */
+async function readActiveAds(): Promise<AdPlacementRecord[]> {
+  const sb = getSupabaseServerSafe();
+  if (!sb) return [];
+
+  const { data, error } = await sb.from("crypto_ads").select("*").eq("is_active", true);
+
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as CryptoAdRow[]).map(mapAdRow);
+}
+
+const cachedActiveAds = cachedRead(
+  readActiveAds,
+  ["crypto-ads-active"],
+  [TAG_CONTENT, TAG_ADS],
+  ADS_REVALIDATE_SECONDS
+);
+
+const memoActiveAds = processCache<AdPlacementRecord[]>(() => cachedActiveAds());
+
+function isServing(ad: AdPlacementRecord, nowIso: string): boolean {
+  if (ad.startDate && ad.startDate > nowIso) return false;
+  if (ad.endDate && ad.endDate < nowIso) return false;
+  return true;
+}
+
+/**
  * Every ad currently inside its serving window, read once per render. An
  * article page has four slots; they used to issue four identical queries.
  */
 const getLiveAds = cache(async (): Promise<AdPlacementRecord[]> => {
-  const sb = getSupabaseServerSafe();
-  if (!sb) return [];
-  const nowIso = new Date().toISOString();
-
-  const { data, error } = await sb
-    .from("crypto_ads")
-    .select("*")
-    .eq("is_active", true)
-    .or(`start_date.is.null,start_date.lte.${nowIso}`)
-    .or(`end_date.is.null,end_date.gte.${nowIso}`);
-
-  if (error || !data) {
-    if (error) console.error("[getLiveAds]", error.message);
+  let ads: AdPlacementRecord[];
+  try {
+    ads = await memoActiveAds("crypto-ads");
+  } catch (err) {
+    console.error("[getLiveAds]", err instanceof Error ? err.message : err);
     return [];
   }
-  return (data as CryptoAdRow[]).map(mapAdRow);
+  const nowIso = new Date().toISOString();
+  return ads.filter((a) => isServing(a, nowIso));
 });
 
 /**

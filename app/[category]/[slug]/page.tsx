@@ -5,26 +5,41 @@ import { getAllCryptoEntries, getEntryFromGraph } from "@/lib/crypto/queries";
 import { getCryptoCategoryBySlug } from "@/lib/crypto/data-static";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { entryMetaDescription, entryMetaTitle } from "@/lib/seo/entryMeta";
+import { isSlugLike } from "@/lib/seo/paths";
 import { CryptoDetailPage } from "./_layouts/CryptoDetailPage";
 
 // Listing pages used to render on every request (force-dynamic) with four
-// queries each. They are now ISR: served from cache and rebuilt at most hourly,
-// which is how edits made in the sidehustletools admin — and newly published
-// articles that belong in a listing's "Guides" block — reach this site.
-export const revalidate = 3600;
+// queries each. They are now ISR: served from cache and rebuilt daily, or on
+// publish via /api/revalidate, which is how edits made in the sidehustletools
+// admin — and newly published articles that belong in a listing's "Guides"
+// block — reach this site.
+export const revalidate = 86400;
+// On, because a listing published after the last deploy has to resolve. The
+// cost is that this route is where path-probing bots land, which is why both
+// entry points below reject an impossible path before touching the graph.
 export const dynamicParams = true;
 
 interface Props {
   params: Promise<{ category: string; slug: string }>;
 }
 
+/**
+ * Could this path name a listing at all? The category list is compiled in, and
+ * the slug shape is the one the manage panel enforces, so a miss here is a
+ * 404 that costs nothing — no database read, no content graph.
+ */
+function isPossibleListingPath(categorySlug: string, slug: string): boolean {
+  return isSlugLike(slug) && Boolean(getCryptoCategoryBySlug(categorySlug));
+}
+
+const NOT_FOUND_METADATA: Metadata = { title: "Not Found", robots: { index: false, follow: true } };
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category: categorySlug, slug } = await params;
+  if (!isPossibleListingPath(categorySlug, slug)) return NOT_FOUND_METADATA;
+
   const entry = await getEntryFromGraph(slug);
-  const category = getCryptoCategoryBySlug(categorySlug);
-  if (!entry || !category || entry.category !== categorySlug) {
-    return { title: "Not Found", robots: { index: false, follow: true } };
-  }
+  if (!entry || entry.category !== categorySlug) return NOT_FOUND_METADATA;
 
   return buildMetadata({
     title: entryMetaTitle(entry),
@@ -49,6 +64,8 @@ export async function generateStaticParams() {
 
 export default async function CryptoDetailPageRoute({ params }: Props) {
   const { category: categorySlug, slug } = await params;
+  if (!isSlugLike(slug)) notFound();
+
   const entry = await getEntryFromGraph(slug);
   if (!entry) notFound();
 

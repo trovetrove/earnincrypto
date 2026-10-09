@@ -16,6 +16,7 @@ import { getContentGraph, hubPath, pageTypeLabel } from "@/lib/seo/contentGraph"
 import { linkBudget } from "@/lib/seo/linkGraph";
 import { toPlainText } from "@/lib/seo/graphData";
 import { linkEntities, selectLinkableEntities } from "@/lib/seo/entityLinker";
+import { isSlugLike } from "@/lib/seo/paths";
 import {
   absoluteUrl,
   buildMetadata,
@@ -33,7 +34,12 @@ import {
 import { DynamicAdSlot } from "@/components/ad-slots";
 import { safeJsonLd } from "@/lib/utils";
 
-export const revalidate = 600;
+// Daily ISR, cleared on publish by /api/revalidate. This used to be ten
+// minutes, which meant every article on the site regenerated 144 times a day
+// to pick up changes that arrive, at most, a few times a week.
+export const revalidate = 86400;
+// On, because an article published after the last deploy has to resolve. A
+// slug that could not have been issued is rejected below before any read.
 export const dynamicParams = true;
 
 export async function generateStaticParams() {
@@ -48,14 +54,18 @@ export async function generateStaticParams() {
   }
 }
 
+const NOT_FOUND_METADATA: Metadata = { title: "Not found", robots: { index: false, follow: true } };
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+  if (!isSlugLike(slug)) return NOT_FOUND_METADATA;
+
   const post = await getPublishedPostBySlug(slug);
-  if (!post) return { title: "Not found", robots: { index: false, follow: true } };
+  if (!post) return NOT_FOUND_METADATA;
 
   const image = post.ogImageUrl || post.coverImageUrl;
   return buildMetadata({
@@ -103,6 +113,8 @@ export default async function BlogPostPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  if (!isSlugLike(slug)) notFound();
+
   const post = await getPublishedPostBySlug(slug);
   if (!post) notFound();
 
