@@ -22,10 +22,13 @@
 //     authority-need component reads).
 //
 // It is pure computation over two cached table reads, so a page render costs
-// the same two queries no matter how many blocks it shows. Content is written
-// by the sidehustletools manage panel; a newly published article is placed
-// into this graph on the next ISR render of any page here — no editor has to
-// go back and add links to old articles by hand.
+// the same two queries no matter how many blocks it shows — and, because the
+// result is memoised against a digest of those rows (see getContentGraph at
+// the bottom of this file), usually no queries and no computation at all.
+// Content is written by the sidehustletools manage panel, which calls
+// /api/revalidate on publish; a newly published article is placed into this
+// graph on the next render after that — no editor has to go back and add links
+// to old articles by hand.
 //
 // Ported from the sidehustletools engine. Crypto-specific differences:
 //
@@ -37,6 +40,7 @@
 //   * Chain is a relevance signal in every pairwise score (see linkGraph.ts).
 
 import { cache } from "react";
+import { rowsDigest } from "@/lib/cache/content";
 import {
   clusterAffinity,
   clusterSetFor,
@@ -70,7 +74,7 @@ import {
   type GraphPost,
   type GuideReason,
 } from "./linkGraph";
-import { selectLinkableEntities } from "./entityLinker";
+import { selectLinkableEntities, type EntityIndexRow } from "./entityLinker";
 import { cryptoCategories } from "@/lib/crypto/data-static";
 
 export type { Site } from "./graphData";
@@ -119,6 +123,12 @@ export type ContentGraph = {
   relatedPosts: Map<string, RelatedPostLink[]>;
   similarEntries: Map<string, SimilarEntryLink[]>;
   guidesByEntry: Map<string, GuideLink[]>;
+  /**
+   * The in-prose auto-linking index: every listing with the names the linker
+   * matches on. Built once with the graph so the census and the article pages
+   * search the same row objects (see entityLinker.searchNames).
+   */
+  entityLinkIndex: EntityIndexRow[];
   /** Authored contextual links into each listing / article, keyed by slug. */
   entryInbound: Map<string, number>;
   postInbound: Map<string, number>;
@@ -148,14 +158,33 @@ export const SERIES_LIMIT = 8;
 
 // ── Entity matching ──────────────────────────────────────────────────
 
+/**
+ * A name paired with the boundary regex for it.
+ *
+ * Both are kept because the regex can only match where the literal name
+ * already appears, so a plain `includes` is a sound prefilter for it — and a
+ * very cheap one next to running a regex over a whole article. Every article
+ * is tested against every listing, so this is the difference between ~n×m
+ * regex scans of the full text and ~n×m substring searches with the regex run
+ * only on the handful that hit.
+ */
+type NameMatch = { name: string; re: RegExp };
+
 type EntityMatcher = {
   slug: string;
   /** Names that make a listing an article's *subject* when they appear in its title. */
-  titleRes: RegExp[];
+  title: NameMatch[];
   /** Names that count as a mention anywhere in the body. */
-  bodyRes: RegExp[];
+  body: NameMatch[];
   slugCores: string[];
 };
+
+function matchesAnywhere(haystack: string, names: NameMatch[]): boolean {
+  for (const { name, re } of names) {
+    if (haystack.includes(name) && re.test(haystack)) return true;
+  }
+  return false;
+}
 
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -189,18 +218,20 @@ function buildMatchers(rows: RawEntry[]): EntityMatcher[] {
 
     const slug = row.slug.toLowerCase();
     const stripped = slug.replace(SLUG_SUFFIX, "");
+    const withRe = (names: string[]): NameMatch[] =>
+      names.map((name) => ({ name, re: boundary(name) }));
     return {
       slug: row.slug,
-      titleRes: titleNames.map(boundary),
-      bodyRes: bodyNames.map(boundary),
+      title: withRe(titleNames),
+      body: withRe(bodyNames),
       slugCores: uniq([slug, stripped]).filter((c) => c.length >= 4),
     };
   });
 }
 
-function isSubject(m: EntityMatcher, titleLower: string, postSlug: string): boolean {
-  if (m.titleRes.some((re) => re.test(titleLower))) return true;
-  return m.slugCores.some((core) => `-${postSlug}-`.includes(`-${core}-`));
+function isSubject(m: EntityMatcher, titleLower: string, paddedSlug: string): boolean {
+  if (matchesAnywhere(titleLower, m.title)) return true;
+  return m.slugCores.some((core) => paddedSlug.includes(`-${core}-`));
 }
 
 // ── Build ────────────────────────────────────────────────────────────
@@ -225,12 +256,15 @@ function buildPosts(
   return rows.map((row) => {
     const text = toPlainText(row.content ?? "");
     const titleLower = row.title.toLowerCase();
-    const postSlug = row.slug.toLowerCase();
+    const paddedSlug = `-${row.slug.toLowerCase()}-`;
 
-    const subjects = matchers.filter((m) => isSubject(m, titleLower, postSlug)).map((m) => m.slug);
-    const mentions = matchers
-      .filter((m) => subjects.includes(m.slug) || m.bodyRes.some((re) => re.test(text)))
-      .map((m) => m.slug);
+    const subjects: string[] = [];
+    const mentions: string[] = [];
+    for (const m of matchers) {
+      const subject = isSubject(m, titleLower, paddedSlug);
+      if (subject) subjects.push(m.slug);
+      if (subject || matchesAnywhere(text, m.body)) mentions.push(m.slug);
+    }
 
     // An article about one project belongs to that project's cluster. This is
     // what lets a post about a brand-new listing land in the right cluster
@@ -328,7 +362,8 @@ function census(
   entryRows: RawEntry[],
   posts: GraphPostNode[],
   entries: GraphEntry[],
-  rawPostById: Map<string, RawPost>
+  rawPostById: Map<string, RawPost>,
+  linkIndex: EntityIndexRow[]
 ): { entryInbound: Map<string, number>; postInbound: Map<string, number>; outbound: Map<string, number> } {
   const entryInbound = new Map<string, number>();
   const postInbound = new Map<string, number>();
@@ -337,13 +372,6 @@ function census(
 
   const entrySlugs = new Set(entries.map((e) => e.slug));
   const postSlugs = new Set(posts.map((p) => p.slug));
-  const linkIndex = entries.map((e) => ({
-    slug: e.slug,
-    title: e.title,
-    category: e.category,
-    aliases: e.aliases,
-    revenuePriority: e.revenuePriority,
-  }));
 
   for (const post of posts) {
     const toEntries = new Set<string>();
@@ -482,7 +510,20 @@ export function buildContentGraph(entryRows: RawEntry[], postRows: RawPost[], si
   const postById = new Map(posts.map((p) => [p.id, p]));
 
   // 3. Authored-link census.
-  const { entryInbound, postInbound, outbound } = census(entryRows, posts, entries, rawPostById);
+  const entityLinkIndex: EntityIndexRow[] = entries.map((e) => ({
+    slug: e.slug,
+    title: e.title,
+    category: e.category,
+    aliases: e.aliases,
+    revenuePriority: e.revenuePriority,
+  }));
+  const { entryInbound, postInbound, outbound } = census(
+    entryRows,
+    posts,
+    entries,
+    rawPostById,
+    entityLinkIndex
+  );
   for (const e of entries) e.inboundLinks = entryInbound.get(e.slug) ?? 0;
   for (const p of posts) {
     p.inboundLinks = postInbound.get(p.slug) ?? 0;
@@ -708,6 +749,7 @@ export function buildContentGraph(entryRows: RawEntry[], postRows: RawPost[], si
     relatedPosts,
     similarEntries,
     guidesByEntry,
+    entityLinkIndex,
     entryInbound,
     postInbound,
     editorialComparisons,
@@ -724,12 +766,58 @@ export function liveEntryRows(rows: RawEntry[]): RawEntry[] {
   return rows.filter((r) => LIVE_CATEGORIES.has(r.category));
 }
 
+/**
+ * The built graph, kept across requests.
+ *
+ * Building it is the most expensive thing this app does — an entity scan over
+ * every article plus three O(n²) allocation passes — and the result depends on
+ * nothing but the rows it was built from. Rebuilding it per render meant every
+ * ISR regeneration and every bot probe of an un-prerendered URL paid for the
+ * whole site's graph.
+ *
+ * So it is memoised per instance against a digest of the rows (ids and
+ * updated_at: edits, inserts and deletes all move it). Content unchanged means
+ * the graph is built once per instance, however many pages it serves. The
+ * digest also makes the staleness explicit — a publish changes it, and the row
+ * cache behind it is cleared by tag at the same moment.
+ *
+ * Keyed by digest value rather than object identity on purpose: when the row
+ * memo in lib/cache/content.ts expires and re-reads, the arrays are new
+ * objects but the digest is the same, so unchanged content still hits.
+ *
+ * Two are kept, so a render that began just before a publish finishes against
+ * the graph it started with instead of rebuilding. Not more than two: a graph
+ * pins the rows it was built from, and holding several generations of the
+ * whole site is how an instance runs out of memory.
+ */
+const GRAPH_CACHE_MAX = 2;
+
+const graphCache = new Map<string, ContentGraph>();
+
+function rememberGraph(key: string, graph: ContentGraph): ContentGraph {
+  graphCache.set(key, graph);
+  // Insertion-ordered, so the first key is the least recently added.
+  while (graphCache.size > GRAPH_CACHE_MAX) {
+    const oldest = graphCache.keys().next().value;
+    if (oldest === undefined) break;
+    graphCache.delete(oldest);
+  }
+  return graph;
+}
+
 const buildCachedGraph = cache(async (site: Site): Promise<ContentGraph> => {
   const [entryRows, postRows] = await Promise.all([
     getRawEntryRows(site),
     getRawPublishedPostRows(site),
   ]);
-  return buildContentGraph(liveEntryRows(entryRows), postRows, site);
+
+  const live = liveEntryRows(entryRows);
+  const key = `${site}|${rowsDigest(live)}|${rowsDigest(postRows)}`;
+
+  const hit = graphCache.get(key);
+  if (hit) return hit;
+
+  return rememberGraph(key, buildContentGraph(live, postRows, site));
 });
 
 /**

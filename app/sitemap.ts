@@ -23,7 +23,9 @@ import { getContentGraph, hubPath } from "@/lib/seo/contentGraph";
 import { declaredPairs } from "@/lib/seo/comparisons";
 import { absoluteUrl, newestDate } from "@/lib/seo/metadata";
 
-export const revalidate = 3600;
+// Rebuilt daily, or on publish via /api/revalidate. The sitemap is fetched by
+// crawlers far more often than its contents change.
+export const revalidate = 86400;
 
 type SitemapEntry = MetadataRoute.Sitemap[number];
 

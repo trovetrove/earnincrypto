@@ -34,8 +34,12 @@ import { buildMetadata, firstThatFits, absoluteUrl, formatDate, newestDate } fro
 import { itemListJsonLd, publisherJsonLd } from "@/lib/seo/structuredData";
 import { safeJsonLd } from "@/lib/utils";
 
-export const revalidate = 3600;
-export const dynamicParams = true;
+// Daily ISR, cleared on publish by /api/revalidate.
+export const revalidate = 86400;
+// The cluster list is compiled in (lib/seo/clusters.ts) and generateStaticParams
+// below returns all of it, so the set of hub URLs is closed: off means the
+// router 404s anything else without ever running this module.
+export const dynamicParams = false;
 
 const PROJECT_LIMIT = 9;
 

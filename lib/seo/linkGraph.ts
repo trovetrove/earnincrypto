@@ -135,15 +135,82 @@ export const DISCOVERY_FLOOR = 20;
 
 const FRESHNESS_HORIZON_DAYS = 180;
 
+// ── Derived values, computed once per object ─────────────────────────
+//
+// The scorers below are called O(n²) times per graph build — every listing
+// against every other, every article against every listing — and each one used
+// to re-derive the same strings and sets from the same rows on every call:
+// lowercasing a title, splitting a chain field, building a tag set. The totals
+// are unchanged; the work is just hoisted into a WeakMap keyed on the object it
+// belongs to, which the graph holds for as long as it is cached.
+
+const tagSetCache = new WeakMap<string[], Set<string>>();
+
+/** Lowercased, trimmed, de-duplicated — the shape jaccard() compares. */
+function tagSet(list: string[]): Set<string> {
+  let hit = tagSetCache.get(list);
+  if (!hit) {
+    hit = new Set(list.map((x) => x.toLowerCase().trim()).filter(Boolean));
+    tagSetCache.set(list, hit);
+  }
+  return hit;
+}
+
+const chainSetCache = new Map<string, Set<string>>();
+/** Chain fields repeat across the whole directory, so this is keyed by value. */
+const CHAIN_CACHE_MAX = 512;
+
+const postKeywordCache = new WeakMap<GraphPost, string[]>();
+
+/** An article's target plus secondary keywords, lowercased, blanks dropped. */
+function postKeywords(post: GraphPost): string[] {
+  let hit = postKeywordCache.get(post);
+  if (!hit) {
+    hit = [post.targetKeyword, ...post.secondaryKeywords]
+      .map((k) => k.toLowerCase().trim())
+      .filter(Boolean);
+    postKeywordCache.set(post, hit);
+  }
+  return hit;
+}
+
+const entryNameCache = new WeakMap<GraphEntry, string[]>();
+
+/** A listing's title and aliases, lowercased; names under 3 chars dropped. */
+function entryNames(entry: GraphEntry): string[] {
+  let hit = entryNameCache.get(entry);
+  if (!hit) {
+    hit = [entry.title, ...entry.aliases]
+      .map((n) => n.toLowerCase().trim())
+      .filter((n) => n.length >= 3);
+    entryNameCache.set(entry, hit);
+  }
+  return hit;
+}
+
+const entryTextCache = new WeakMap<GraphEntry, string>();
+
+/** Everything about a listing a keyword could match, as one lowercased string. */
+function entryText(entry: GraphEntry): string {
+  let hit = entryTextCache.get(entry);
+  if (hit === undefined) {
+    hit = `${entry.title} ${entry.shortDescription} ${entry.tags.join(" ")}`.toLowerCase();
+    entryTextCache.set(entry, hit);
+  }
+  return hit;
+}
+
 // ── Sub-scores ───────────────────────────────────────────────────────
 
 function jaccard(a: string[], b: string[]): number {
   if (!a.length || !b.length) return 0;
-  const sa = new Set(a.map((x) => x.toLowerCase().trim()).filter(Boolean));
-  const sb = new Set(b.map((x) => x.toLowerCase().trim()).filter(Boolean));
+  const sa = tagSet(a);
+  const sb = tagSet(b);
   if (!sa.size || !sb.size) return 0;
+  // Walk the smaller set: the result is symmetric, the cost isn't.
+  const [small, large] = sa.size <= sb.size ? [sa, sb] : [sb, sa];
   let inter = 0;
-  for (const v of sa) if (sb.has(v)) inter++;
+  for (const v of small) if (large.has(v)) inter++;
   return inter / (sa.size + sb.size - inter);
 }
 
@@ -164,11 +231,8 @@ export function topicalRelevance(
   const categoryMatch = post.category === entry.category ? 100 : 0;
   const tagOverlap = jaccard(post.tags, entry.tags) * 100;
 
-  const keywords = [post.targetKeyword, ...post.secondaryKeywords]
-    .map((k) => k.toLowerCase().trim())
-    .filter(Boolean);
-  const entryText = `${entry.title} ${entry.shortDescription} ${entry.tags.join(" ")}`.toLowerCase();
-  const keywordHit = keywords.some((k) => entryText.includes(k)) ? 100 : 0;
+  const haystack = entryText(entry);
+  const keywordHit = postKeywords(post).some((k) => haystack.includes(k)) ? 100 : 0;
 
   const base =
     affinity * 0.55 + categoryMatch * 0.15 + tagOverlap * 0.2 + keywordHit * 0.1;
@@ -201,13 +265,25 @@ const CHAIN_ALIASES: Record<string, string> = {
 
 /** "Ethereum, Arbitrum / Base" → {"ethereum", "arbitrum", "base"}. */
 export function chainSet(chain?: string | null): Set<string> {
+  if (!chain) return new Set<string>();
+
+  const cached = chainSetCache.get(chain);
+  if (cached) return cached;
+
   const out = new Set<string>();
-  if (!chain) return out;
   for (const raw of chain.toLowerCase().split(/[,/|+&;]|\band\b/)) {
     const c = raw.replace(/\s+/g, " ").trim();
     if (!c || CHAINLESS.has(c)) continue;
     out.add(CHAIN_ALIASES[c] ?? c);
   }
+
+  // Bounded, because the key is a row value and a bad import could hold a lot
+  // of distinct ones. Oldest first — insertion order on a Map.
+  if (chainSetCache.size >= CHAIN_CACHE_MAX) {
+    const oldest = chainSetCache.keys().next().value;
+    if (oldest !== undefined) chainSetCache.delete(oldest);
+  }
+  chainSetCache.set(chain, out);
   return out;
 }
 
@@ -263,20 +339,31 @@ export function authorityNeed(inboundLinks: number): number {
   return Math.max(0, 22 - (inboundLinks - 5) * 4);
 }
 
+const postTitleCache = new WeakMap<GraphPost, { title: string; keywords: string }>();
+
+function postMatchText(post: GraphPost): { title: string; keywords: string } {
+  let hit = postTitleCache.get(post);
+  if (!hit) {
+    hit = {
+      title: post.title.toLowerCase(),
+      keywords: [post.targetKeyword, ...post.secondaryKeywords].join(" ").toLowerCase(),
+    };
+    postTitleCache.set(post, hit);
+  }
+  return hit;
+}
+
 /** Does the article actually talk about this platform? */
 export function entityOverlap(post: GraphPost, entry: GraphEntry): number {
-  const names = [entry.title, ...entry.aliases]
-    .map((n) => n.toLowerCase().trim())
-    .filter((n) => n.length >= 3);
+  const names = entryNames(entry);
   if (!names.length) return 0;
 
-  const title = post.title.toLowerCase();
-  const keywords = [post.targetKeyword, ...post.secondaryKeywords]
-    .join(" ")
-    .toLowerCase();
+  const { title, keywords } = postMatchText(post);
 
   if (names.some((n) => title.includes(n))) return 100;
   if (names.some((n) => keywords.includes(n))) return 85;
+  // post.text is the whole article, so this is the expensive test — last, and
+  // only reached when the cheap ones missed.
   if (names.some((n) => post.text.includes(n))) return 70;
   return 0;
 }
@@ -669,16 +756,36 @@ export function coreName(title: string): string | null {
   return core && core !== t ? core.toLowerCase() : null;
 }
 
+const alternativeNameCache = new WeakMap<GraphEntry, Set<string>>();
+
+/** Every spelling of `entry` an editor might have typed into another row. */
+function alternativeNames(entry: GraphEntry): Set<string> {
+  let hit = alternativeNameCache.get(entry);
+  if (!hit) {
+    const core = coreName(entry.title);
+    hit = new Set(
+      [
+        entry.slug,
+        entry.title,
+        ...entry.aliases,
+        ...(core && core.length >= 4 ? [core] : []),
+      ].map((n) => n.toLowerCase().trim())
+    );
+    alternativeNameCache.set(entry, hit);
+  }
+  return hit;
+}
+
 /** True when `a` names `b` as an alternative or declared comparison. */
 export function isDeclaredAlternative(a: GraphEntry, b: GraphEntry): boolean {
   if (a.comparisonSlugs?.includes(b.slug)) return true;
-  const core = coreName(b.title);
-  const names = new Set(
-    [b.slug, b.title, ...b.aliases, ...(core && core.length >= 4 ? [core] : [])].map((n) =>
-      n.toLowerCase().trim()
-    )
-  );
-  return (a.alternatives ?? []).some((alt) => {
+  // Cheapest exit by far: most listings declare no alternatives at all, and
+  // this runs once per ordered pair in the directory.
+  const alternatives = a.alternatives;
+  if (!alternatives?.length) return false;
+
+  const names = alternativeNames(b);
+  return alternatives.some((alt) => {
     const v = alt.toLowerCase().trim();
     return names.has(v) || names.has(v.replace(/\s+/g, "-"));
   });

@@ -20,7 +20,14 @@ import { itemListJsonLd } from "@/lib/seo/structuredData";
 import { BannerAd } from "@/components/ad-slots";
 import { safeJsonLd } from "@/lib/utils";
 
-export const revalidate = 3600;
+// ISR window: a day, not an hour. Nothing here changes on its own — it changes
+// when an editor publishes, and publishing calls /api/revalidate, which clears
+// these pages and the row cache behind them. The window is the backstop for a
+// webhook that never arrived, so it costs a render a day per URL instead of
+// one an hour whether or not anything changed.
+export const revalidate = 86400;
+// The category list is static and complete, so anything else is a 404 from the
+// router without ever reaching this module.
 export const dynamicParams = false;
 
 interface Props {

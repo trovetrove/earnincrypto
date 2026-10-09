@@ -16,26 +16,25 @@ import type { CryptoEntry } from "@/lib/crypto/types";
 import { getCryptoCategoryBySlug } from "@/lib/crypto/data-static";
 import { comparisonPath, getContentGraph } from "@/lib/seo/contentGraph";
 import { comparisonStatus, declaredPairs, isComparablePair } from "@/lib/seo/comparisons";
+import { parseComparisonSegment } from "@/lib/seo/paths";
 import { Breadcrumbs } from "@/components/seo/Breadcrumbs";
 import { absoluteUrl, buildMetadata, CURRENT_YEAR, firstThatFits, newestDate } from "@/lib/seo/metadata";
 import { outboundRel, publisherJsonLd } from "@/lib/seo/structuredData";
 import { safeJsonLd } from "@/lib/utils";
 
-export const revalidate = 3600;
+// Daily ISR, cleared on publish by /api/revalidate.
+export const revalidate = 86400;
+// On, so a pair becomes comparable as soon as both listings exist. This is the
+// route bots probe hardest — every two slugs make a URL — so the segment is
+// rejected on shape in parseComparisonSegment before anything is loaded.
 export const dynamicParams = true;
 
 interface Props {
   params: Promise<{ comparison: string }>;
 }
 
-function parseComparison(segment: string): { slugA: string; slugB: string } | null {
-  const idx = segment.indexOf("-vs-");
-  if (idx <= 0) return null;
-  return { slugA: segment.slice(0, idx), slugB: segment.slice(idx + 4) };
-}
-
 async function loadPair(segment: string) {
-  const parsed = parseComparison(segment);
+  const parsed = parseComparisonSegment(segment);
   if (!parsed) return null;
   const graph = await getContentGraph("crypto");
   const na = graph.entryBySlug.get(parsed.slugA);

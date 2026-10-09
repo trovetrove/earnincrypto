@@ -20,8 +20,11 @@ export default async function Image({
   params: Promise<{ category: string; slug: string }>;
 }) {
   const { category: categorySlug, slug } = await params;
-  const entry = await getCryptoEntryBySlug(slug);
+  // The category is compiled in, so an invented path falls straight through to
+  // the generic card without a read. getCryptoEntryBySlug applies the same
+  // test to the slug and caches what it does fetch.
   const category = getCryptoCategoryBySlug(categorySlug);
+  const entry = category ? await getCryptoEntryBySlug(slug) : null;
 
   if (!entry || !category) {
     return new ImageResponse(
