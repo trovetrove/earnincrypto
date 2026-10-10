@@ -6,12 +6,12 @@ import { Breadcrumbs } from "@/components/seo/Breadcrumbs";
 import { buildMetadata, plainText } from "@/lib/seo/metadata";
 import { CryptoDirectoryClient, type DirectoryItem } from "./directory-client";
 
-// ISR window: a day, not an hour. Nothing here changes on its own — it changes
+// ISR window: a week, not an hour. Nothing here changes on its own — it changes
 // when an editor publishes, and publishing calls /api/revalidate, which clears
 // these pages and the row cache behind them. The window is the backstop for a
-// webhook that never arrived, so it costs a render a day per URL instead of
+// webhook that never arrived, so it costs a render a week per URL instead of
 // one an hour whether or not anything changed.
-export const revalidate = 86400;
+export const revalidate = 604800;
 
 export const metadata: Metadata = buildMetadata({
   title: "All Crypto Tools & Airdrops: Browse & Filter",

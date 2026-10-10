@@ -34,10 +34,10 @@ import {
 import { DynamicAdSlot } from "@/components/ad-slots";
 import { safeJsonLd } from "@/lib/utils";
 
-// Daily ISR, cleared on publish by /api/revalidate. This used to be ten
+// Weekly ISR, cleared on publish by /api/revalidate. This used to be ten
 // minutes, which meant every article on the site regenerated 144 times a day
 // to pick up changes that arrive, at most, a few times a week.
-export const revalidate = 86400;
+export const revalidate = 604800;
 // On, because an article published after the last deploy has to resolve. A
 // slug that could not have been issued is rejected below before any read.
 export const dynamicParams = true;

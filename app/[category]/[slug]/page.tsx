@@ -9,11 +9,11 @@ import { isSlugLike } from "@/lib/seo/paths";
 import { CryptoDetailPage } from "./_layouts/CryptoDetailPage";
 
 // Listing pages used to render on every request (force-dynamic) with four
-// queries each. They are now ISR: served from cache and rebuilt daily, or on
+// queries each. They are now ISR: served from cache and rebuilt weekly, or on
 // publish via /api/revalidate, which is how edits made in the sidehustletools
 // admin — and newly published articles that belong in a listing's "Guides"
 // block — reach this site.
-export const revalidate = 86400;
+export const revalidate = 604800;
 // On, because a listing published after the last deploy has to resolve. The
 // cost is that this route is where path-probing bots land, which is why both
 // entry points below reject an impossible path before touching the graph.

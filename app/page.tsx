@@ -10,10 +10,10 @@ import { absoluteUrl, buildMetadata, CURRENT_YEAR, formatDate } from "@/lib/seo/
 import { safeJsonLd } from "@/lib/utils";
 import { ArrowRight, Zap, Shield, TrendingUp, Sparkles, ExternalLink } from "lucide-react";
 
-// Daily ISR, cleared on publish by /api/revalidate: new listings and articles
+// Weekly ISR, cleared on publish by /api/revalidate: new listings and articles
 // published from the sidehustletools admin appear here without a deploy, and
 // without this page regenerating hourly whether or not anything changed.
-export const revalidate = 86400;
+export const revalidate = 604800;
 
 export const metadata: Metadata = buildMetadata({
   title: `Crypto Airdrops, Exchanges & DeFi Yield (${CURRENT_YEAR})`,
