@@ -22,8 +22,8 @@ import { absoluteUrl, buildMetadata, CURRENT_YEAR, firstThatFits, newestDate } f
 import { outboundRel, publisherJsonLd } from "@/lib/seo/structuredData";
 import { safeJsonLd } from "@/lib/utils";
 
-// Daily ISR, cleared on publish by /api/revalidate.
-export const revalidate = 86400;
+// Weekly ISR, cleared on publish by /api/revalidate.
+export const revalidate = 604800;
 // On, so a pair becomes comparable as soon as both listings exist. This is the
 // route bots probe hardest — every two slugs make a URL — so the segment is
 // rejected on shape in parseComparisonSegment before anything is loaded.

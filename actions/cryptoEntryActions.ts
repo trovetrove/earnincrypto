@@ -1,9 +1,13 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { getSupabaseServer } from "@/lib/supabase/server";
+import { TAG_CONTENT } from "@/lib/cache/content";
+import { clusterSetFor, resolveCluster } from "@/lib/seo/clusters";
+import { comparisonPath, hubPath } from "@/lib/seo/contentGraph";
+import { isSlugLike } from "@/lib/seo/paths";
 
 const cryptoEntrySchema = z.object({
   title: z.string().min(2, "Title is required"),
@@ -101,11 +105,64 @@ function parseCryptoFormData(formData: FormData) {
   };
 }
 
-function revalidateCryptoPages(category: string, slug: string) {
-  revalidatePath(`/crypto/${category}/${slug}`);
-  revalidatePath(`/crypto/${category}`);
-  revalidatePath("/crypto");
-  revalidatePath("/crypto/directory");
+/** The columns revalidateCryptoPages needs to name a listing's own pages. */
+type ListingRef = {
+  category: string;
+  slug: string;
+  title?: string | null;
+  tags?: string[] | null;
+  cluster?: string | null;
+  alternatives?: string[] | null;
+};
+
+const LISTING_REF_COLUMNS = "category, slug, title, tags, cluster, alternatives";
+
+/**
+ * Purge what an edit to one listing changes, and nothing wider.
+ *
+ * The tag purge drops the cached table reads, so the next render of any page
+ * rebuilds from fresh rows. It does not mark pages stale: only the pages named
+ * here are re-rendered, and every other page picks the change up (related
+ * reading, similar listings, guides) when its own window expires. There are
+ * deliberately no `[param]` patterns here — one of those marks every page
+ * under the route stale at once, and crawlers then re-render them all.
+ *
+ * Pages named:
+ *   * the listing, its category, and each comparison it declares;
+ *   * its topic hub — the resolved cluster, since the form has no cluster
+ *     field and the stored one is kept on update;
+ *   * the index pages that list or link it, and the sitemap.
+ *
+ * Paths for pages that don't exist (an alternative that isn't a listing) are
+ * a no-op, so the comparison list doesn't need to check them.
+ */
+function revalidateCryptoPages(ref: ListingRef) {
+  revalidateTag(TAG_CONTENT);
+
+  const set = clusterSetFor("crypto");
+  const cluster = resolveCluster(
+    ref.cluster,
+    { slug: ref.slug, category: ref.category, tags: ref.tags ?? [], title: ref.title ?? undefined },
+    set
+  );
+
+  const paths = new Set<string>([
+    `/${ref.category}/${ref.slug}`,
+    `/${ref.category}`,
+    hubPath(cluster),
+    "/",
+    "/directory",
+    "/compare",
+    "/topics",
+    "/sitemap.xml",
+  ]);
+
+  for (const alt of ref.alternatives ?? []) {
+    const altSlug = alt.toLowerCase().trim().replace(/\s+/g, "-");
+    if (isSlugLike(altSlug) && altSlug !== ref.slug) paths.add(comparisonPath(ref.slug, altSlug));
+  }
+
+  for (const path of paths) revalidatePath(path);
 }
 
 export async function createCryptoEntry(
@@ -142,7 +199,7 @@ export async function createCryptoEntry(
       return { success: false, message: `Database error: ${error.message}` };
     }
 
-    revalidateCryptoPages(data.category, data.slug);
+    revalidateCryptoPages(data);
     return { success: true, message: `"${data.title}" created successfully` };
   } catch (err) {
     console.error("[createCryptoEntry] unexpected:", err);
@@ -168,7 +225,7 @@ export async function updateCryptoEntry(
     const sb = getSupabaseServer();
     const { data: oldEntry } = await sb
       .from("crypto_entries")
-      .select("category, slug")
+      .select(LISTING_REF_COLUMNS)
       .eq("id", id)
       .single();
 
@@ -184,8 +241,9 @@ export async function updateCryptoEntry(
       return { success: false, message: `Database error: ${error.message}` };
     }
 
-    if (oldEntry) revalidateCryptoPages(oldEntry.category, oldEntry.slug);
-    revalidateCryptoPages(data.category, data.slug);
+    // The form has no cluster field, so the stored one carries over.
+    if (oldEntry) revalidateCryptoPages(oldEntry);
+    revalidateCryptoPages({ ...data, cluster: oldEntry?.cluster });
 
     return { success: true, message: `"${data.title}" updated successfully` };
   } catch (err) {
@@ -205,7 +263,7 @@ export async function deleteCryptoEntry(id: string): Promise<CryptoActionState> 
     const sb = getSupabaseServer();
     const { data: entry } = await sb
       .from("crypto_entries")
-      .select("category, slug, title")
+      .select(LISTING_REF_COLUMNS)
       .eq("id", id)
       .single();
 
@@ -213,7 +271,7 @@ export async function deleteCryptoEntry(id: string): Promise<CryptoActionState> 
 
     if (error) return { success: false, message: `Database error: ${error.message}` };
 
-    if (entry) revalidateCryptoPages(entry.category, entry.slug);
+    if (entry) revalidateCryptoPages(entry);
 
     return { success: true, message: `"${entry?.title ?? "Entry"}" deleted` };
   } catch (err) {

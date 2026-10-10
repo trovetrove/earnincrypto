@@ -3,15 +3,13 @@ import { ImageResponse } from "next/og";
 import { getCryptoCountsDirect } from "@/lib/crypto/queries";
 
 export const runtime = "edge";
-export const revalidate = 86400;
+export const revalidate = 604800;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 export default async function Image() {
-  // This renders outside the page tree, so it can't share the page's cached
-  // read of the whole table. The two head-only count queries behind it go
-  // through the data cache on the same tags instead, so they run once a day at
-  // most however often the card is fetched.
+  // Counts come from the cached raw rows the pages share, not from the link
+  // graph, which a card has no use for.
   const stats = await getCryptoCountsDirect();
   const year = new Date().getFullYear();
 

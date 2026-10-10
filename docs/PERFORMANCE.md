@@ -49,7 +49,27 @@ on the graph, so it is dropped automatically when content changes:
 - the normalised strings and sets the scorers in `lib/seo/linkGraph.ts` used to
   re-derive on each of their O(n²) calls.
 
-**ISR windows are a day**, not an hour, because publishing clears them (below).
+**ISR windows are a week**, not an hour, because publishing clears them (below).
+The sitemap stays at a day. `CONTENT_REVALIDATE_SECONDS` (the table reads) is a
+week too.
+
+**A publish purges the tag and re-renders only the pages it touched.**
+`revalidateCryptoPages` (`actions/cryptoEntryActions.ts`) calls
+`revalidateTag("content")` and revalidates the listing, its category, its topic
+hub, its declared comparisons, and the index pages (`/`, `/directory`,
+`/compare`, `/topics`, `/sitemap.xml`). It never uses `[param]` patterns: one of
+those marks every page under a route stale at once, and crawlers then re-render
+all of them. The cost is that generated cross-links on pages that were not
+edited (related reading, guides, similar listings) update when their own window
+expires, and rows edited directly in Supabase take up to a week to appear, or
+until the next deploy.
+
+**OG images read the cached raw rows**, not the link graph
+(`getCryptoEntryBySlug`, `getCryptoCountsDirect` in `lib/crypto/queries.ts`).
+
+**Concurrent cold reads are shared.** `processCache` holds the in-flight
+promise, so after a purge concurrent renders on an instance share one table
+read.
 
 **Invented URLs are rejected before anything loads.** `lib/seo/paths.ts` holds
 the shape checks; a slug this site could not have issued never reaches a read.
@@ -61,7 +81,7 @@ bottom of `middleware.ts` for what it no longer runs on.
 
 ## Publishing: `/api/revalidate`
 
-The day-long windows are only safe because the manage panel clears them. Set
+The week-long windows are only safe because the manage panel clears them. Set
 `CONTENT_REVALIDATE_SECRET` in the environment here and in the panel, then call
 this after any write:
 
@@ -79,7 +99,7 @@ the tags cover the data, the paths cover rendered HTML that would otherwise sit
 until its window expires.
 
 Without the secret set, the route 401s everything and the windows are the only
-freshness mechanism — an edit then takes up to a day to appear.
+freshness mechanism — an edit then takes up to a week to appear.
 
 ## Crawlers
 
@@ -118,3 +138,13 @@ the portable default; the firewall is the right tool for an active abuser.
   JS.
 - **Rate limiting in middleware.** Per-instance counters on a serverless
   platform don't add up to a rate limit. Use the firewall.
+
+## Vercel dashboard settings
+
+Not code, so they are not in the repo. Set them under **Firewall**:
+
+1. **Custom Rules**: Deny on user agent containing Ahrefs, Semrush, MJ12, DotBot,
+   GPTBot, CCBot (and the other agents in `BLOCKED_AGENTS` in `middleware.ts`),
+   and Deny on path matching `/wp-*`, `*.php`, `*.env`. Keep search engines,
+   link-preview bots and the answer engines in `AGENT_ALLOWLIST` out of it.
+2. **Managed Rules**: turn on **Bot Protection** and **AI Bots**.

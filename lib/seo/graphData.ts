@@ -109,7 +109,7 @@ export type RawPost = {
  * what keeps a transient Supabase error out of the caches below:
  * `unstable_cache` only stores a fulfilled value, and processCache evicts a
  * rejected slot, so the next request retries instead of serving an empty
- * directory for a day. The exported wrappers turn the rejection back into [].
+ * directory for a week. The exported wrappers turn the rejection back into [].
  *
  * The directory is read whole: at a few hundred rows the table is far smaller
  * than the cost of getting the ranking wrong, and a capped read would make

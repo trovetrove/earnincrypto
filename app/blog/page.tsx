@@ -9,12 +9,12 @@ import { getContentGraph, hubPath, pageTypeLabel } from "@/lib/seo/contentGraph"
 import { buildMetadata, formatDate } from "@/lib/seo/metadata";
 import { BlogList, type BlogListItem } from "./blog-list";
 
-// ISR window: a day, not an hour. Nothing here changes on its own — it changes
+// ISR window: a week, not an hour. Nothing here changes on its own — it changes
 // when an editor publishes, and publishing calls /api/revalidate, which clears
 // these pages and the row cache behind them. The window is the backstop for a
-// webhook that never arrived, so it costs a render a day per URL instead of
+// webhook that never arrived, so it costs a render a week per URL instead of
 // one an hour whether or not anything changed.
-export const revalidate = 86400;
+export const revalidate = 604800;
 
 /**
  * The blog index is one indexable page. `?category=` filters are slices of the

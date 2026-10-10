@@ -4,7 +4,7 @@ import { getCryptoEntryBySlug } from "@/lib/crypto/queries";
 import { getCryptoCategoryBySlug } from "@/lib/crypto/data-static";
 
 export const runtime = "edge";
-export const revalidate = 86400;
+export const revalidate = 604800;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -22,7 +22,7 @@ export default async function Image({
   const { category: categorySlug, slug } = await params;
   // The category is compiled in, so an invented path falls straight through to
   // the generic card without a read. getCryptoEntryBySlug applies the same
-  // test to the slug and caches what it does fetch.
+  // test to the slug, then finds the row in the cached raw rows.
   const category = getCryptoCategoryBySlug(categorySlug);
   const entry = category ? await getCryptoEntryBySlug(slug) : null;
 

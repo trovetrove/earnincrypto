@@ -44,11 +44,11 @@ export const ALL_CONTENT_TAGS = [TAG_CONTENT, TAG_ENTRIES, TAG_POSTS, TAG_ADS] a
 // ── Lifetimes ────────────────────────────────────────────────────────
 
 /**
- * How long a data-cache entry survives without a publish. A day, because the
+ * How long a data-cache entry survives without a publish. A week, because the
  * publish webhook is what makes content appear now; this is only the
  * safety net for a webhook that never arrived.
  */
-export const CONTENT_REVALIDATE_SECONDS = 86_400;
+export const CONTENT_REVALIDATE_SECONDS = 604_800;
 
 /** Ads rotate on their own window (start_date/end_date), so they get an hour. */
 export const ADS_REVALIDATE_SECONDS = 3_600;
@@ -83,13 +83,27 @@ type Slot<T> = { value: Promise<T>; expires: number };
 /**
  * Memoises `load` per key for PROCESS_TTL_MS. The promise is stored, not the
  * resolved value, so concurrent renders share one in-flight read; a rejection
- * evicts itself so a transient database error isn't cached.
+ * evicts itself so a transient database error isn't cached. With a zero TTL
+ * nothing is kept, but the in-flight read is still shared.
  */
 export function processCache<T>(
   load: (key: string) => Promise<T>,
   ttlMs: number = PROCESS_TTL_MS
 ): (key: string) => Promise<T> {
-  if (ttlMs <= 0) return load;
+  // No memo window, but concurrent callers still share one read: after a purge
+  // every render that arrives before the first read lands would otherwise pull
+  // the whole table itself.
+  if (ttlMs <= 0) {
+    const inflight = new Map<string, Promise<T>>();
+    return (key: string): Promise<T> => {
+      let pending = inflight.get(key);
+      if (!pending) {
+        pending = load(key).finally(() => inflight.delete(key));
+        inflight.set(key, pending);
+      }
+      return pending;
+    };
+  }
 
   const slots = new Map<string, Slot<T>>();
 
