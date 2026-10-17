@@ -1,7 +1,7 @@
 // lib/supabase/safe.ts
 //
 // getSupabaseServer() calls createClient() with non-null assertions on the
-// env vars, so a missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY
+// env vars, so a missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY
 // makes it throw synchronously ("supabaseUrl is required"). Thrown from inside
 // a Server Component that surfaces to the browser as the opaque
 // "An error occurred in the Server Components render" — a whole page 500s.

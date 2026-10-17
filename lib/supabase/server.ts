@@ -15,7 +15,7 @@ export function getSupabaseServer(): SupabaseClient<Database> {
   if (process.env.NODE_ENV === "production") {
     return createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      process.env.SUPABASE_SECRET_KEY!,
       {
         auth: { persistSession: false },
         db: { schema: "public" },
@@ -27,7 +27,7 @@ export function getSupabaseServer(): SupabaseClient<Database> {
   if (!global._supabaseServer) {
     global._supabaseServer = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      process.env.SUPABASE_SECRET_KEY!,
       {
         auth: { persistSession: false },
         db: { schema: "public" },
